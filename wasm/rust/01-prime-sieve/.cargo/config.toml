@@ -1,0 +1,4 @@
+[build]
+# Default target so `cargo build --release` produces a .wasm binary without
+# needing to pass --target explicitly every time.
+target = "wasm32-wasip1"
