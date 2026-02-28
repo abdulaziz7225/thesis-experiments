@@ -2,14 +2,20 @@
 //
 // NOTE: No mature async HTTP framework compiles reliably to wasm32-wasip1.
 // hyper_wasi / tokio_wasi (WasmEdge-specific forks) are unmaintained.
-// This service therefore uses std::net::TcpListener (sync, single-threaded)
-// via WasmEdge's WASI socket extension. See README.md for full rationale.
+// std::net::TcpListener returns Unsupported on wasm32-wasip1 — it is not
+// wired to WasmEdge's proprietary socket extension.  The wasmedge_wasi_socket
+// crate (latest: 0.5.5) imports sock_open/bind/listen/accept directly from
+// wasi_snapshot_preview1 and is the WasmEdge-documented low-level path.
+// This service is therefore sync, single-threaded.  See README.md.
 //
 // Build target: wasm32-wasip1  (see .cargo/config.toml)
 
 use std::io::{BufRead, BufReader, Write};
-use std::net::{TcpListener, TcpStream};
 use std::time::Instant;
+// std::net::TcpListener is unimplemented for wasm32-wasip1 (returns Unsupported).
+// wasmedge_wasi_socket imports WasmEdge's proprietary WASI socket extension
+// (sock_open/sock_bind/sock_listen/sock_accept from wasi_snapshot_preview1) directly.
+use wasmedge_wasi_socket::{TcpListener, TcpStream};
 
 // ── Algorithm ───────────────────────────────────────────────────────────────
 fn sieve_of_eratosthenes(limit: usize) -> Vec<usize> {
@@ -148,7 +154,7 @@ fn handle_connection(stream: TcpStream) {
 // ── Entry point ──────────────────────────────────────────────────────────────
 fn main() {
     let addr = "0.0.0.0:8080";
-    let listener = TcpListener::bind(addr).expect("failed to bind");
+    let listener = TcpListener::bind(addr, false).expect("failed to bind");
     eprintln!("rust-wasm prime-sieve listening on {addr}");
 
     for stream in listener.incoming() {

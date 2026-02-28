@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 # No async HTTP framework is available for wasm32-wasip1 (see README.md).
-# Only serde_json is needed; networking is handled via std::net::TcpListener.
+# std::net::TcpListener returns Unsupported on wasm32-wasip1; WasmEdge's socket
+# extension (sock_open/sock_bind/sock_listen/sock_accept in wasi_snapshot_preview1)
+# must be accessed via the wasmedge_wasi_socket crate which imports them directly.
 [dependencies]
-serde_json = "1"
+serde_json             = "1"
+wasmedge_wasi_socket   = "0.5.5"
 
 [profile.release]
 opt-level = "s"   # minimise binary size (important for cold-start comparison)

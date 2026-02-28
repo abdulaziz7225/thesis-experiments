@@ -18,8 +18,9 @@ RUN touch src/main.rs \
     && cargo build --target wasm32-wasip1 --release
 
 # ── Stage 2: minimal OCI image containing only the .wasm binary ──────────────
-# WasmEdge's containerd shim (runwasi) extracts and executes the binary
-# named in the container's ENTRYPOINT.
+# The WasmEdge runtime (via crun OCI runtime) extracts and executes the binary
+# named in the container's ENTRYPOINT. The "wasmedge" RuntimeClass in k8s
+# routes pod creation through crun → libwasmedge.so (system WasmEdge ≥ 0.14).
 FROM scratch
 
 COPY --from=builder \

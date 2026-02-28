@@ -1,4 +1,4 @@
-# prime-sieve — Rust + WASM (WasmEdge)
+# prime-sieve — Wasm (WasmEdge) + Rust
 
 ## Ecosystem Limitation: No Async HTTP for wasm32-wasip1
 
@@ -8,8 +8,8 @@ All other variants in this experiment use a mature async HTTP framework:
 |---|---|
 | `docker/rust` | axum (async, tokio) |
 | `docker/golang` | net/http (stdlib, goroutine-per-request) |
-| `wasm/tinygo` | net/http (stdlib, goroutine-per-request) |
-| **`wasm/rust`** | **std::net::TcpListener (sync, single-threaded)** |
+| `wasm/tinygo` | raw TCP via //go:wasmimport (sync, single-threaded) |
+| **`wasm/rust`** | **wasmedge_wasi_socket (sync, single-threaded)** |
 
 ### Why no async HTTP for wasm/rust?
 
