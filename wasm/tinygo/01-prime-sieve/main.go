@@ -1,13 +1,12 @@
-// TinyGo + WASM (WasmEdge) – prime-sieve HTTP service
+// Wasm (WasmEdge) + TinyGo – prime-sieve HTTP service
 //
 // Build command:
-//   tinygo build -o app.wasm -target=wasip1 -gc=conservative -opt=2 .
+//   tinygo build -o app.wasm -target=wasi -gc=conservative -opt=2 .
 //
-// Runtime note:
-//   TinyGo's net/http server relies on WASI socket syscalls (sock_accept,
-//   sock_listen, …) which WasmEdge provides as an extension to WASI P1.
-//   Make sure the WasmEdge runtime is started with socket support enabled
-//   (default in WasmEdge ≥ 0.11 and runwasi containerd-shim-wasmedge ≥ 0.4).
+// Handler code is intentionally identical to docker/golang — same
+// net/http types (ResponseWriter, Request, ServeMux), same JSON encoding,
+// same query-parameter parsing.  The only difference from docker/golang is
+// serveWasmEdge() instead of http.ListenAndServe(): see server.go.
 
 package main
 
@@ -30,12 +29,10 @@ type SieveResponse struct {
 }
 
 // ── Algorithm ───────────────────────────────────────────────────────────────
-// sieve returns every prime p where 2 ≤ p ≤ limit.
-func sieve(limit int) []int {
+func sieveOfEratosthenes(limit int) []int {
 	if limit < 2 {
 		return nil
 	}
-
 	composite := make([]bool, limit+1)
 	for i := 2; i*i <= limit; i++ {
 		if !composite[i] {
@@ -44,8 +41,7 @@ func sieve(limit int) []int {
 			}
 		}
 	}
-
-	primes := make([]int, 0)
+	primes := make([]int, 0, limit/10)
 	for i := 2; i <= limit; i++ {
 		if !composite[i] {
 			primes = append(primes, i)
@@ -69,8 +65,8 @@ func sieveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	noList := q.Get("no_list") == "true" || q.Get("no_list") == "1"
 
-	start   := time.Now()
-	primes  := sieve(limit)
+	start := time.Now()
+	primes := sieveOfEratosthenes(limit)
 	elapsed := time.Since(start).Microseconds()
 
 	fmt.Fprintf(os.Stderr, "sieve limit=%d count=%d elapsed_us=%d\n",
@@ -93,18 +89,20 @@ func sieveHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "ok")
 }
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 func main() {
-	http.HandleFunc("/sieve",  sieveHandler)
-	http.HandleFunc("/health", healthHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sieve", sieveHandler)
+	mux.HandleFunc("/health", healthHandler)
 
 	addr := ":8080"
 	fmt.Fprintf(os.Stderr, "tinygo-wasm prime-sieve listening on %s\n", addr)
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := serveWasmEdge(addr, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}
