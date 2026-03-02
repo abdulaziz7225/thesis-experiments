@@ -6,7 +6,7 @@
 // wired to WasmEdge's proprietary socket extension.  The wasmedge_wasi_socket
 // crate (latest: 0.5.5) imports sock_open/bind/listen/accept directly from
 // wasi_snapshot_preview1 and is the WasmEdge-documented low-level path.
-// This service is therefore sync, single-threaded.  See README.md.
+// This service is therefore sync, single-threaded.
 //
 // Build target: wasm32-wasip1  (see .cargo/config.toml)
 
