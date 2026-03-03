@@ -1,0 +1,75 @@
+# Rust + Docker (OCI / runc) variant
+# NodePort: 30083  →  pod :8080
+#
+# Build & push:
+#   docker build -t <docker.io/abdulaziz7225>/prime-sieve-docker-rust:latest \
+#          docker/rust/01-prime-sieve/
+#   docker push <docker.io/abdulaziz7225>/prime-sieve-docker-rust:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prime-sieve-docker-rust
+  namespace: prime-sieve
+  labels:
+    app:     prime-sieve-docker-rust
+    variant: docker-rust
+    experiment: "01-prime-sieve"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prime-sieve-docker-rust
+  template:
+    metadata:
+      labels:
+        app:     prime-sieve-docker-rust
+        variant: docker-rust
+    spec:
+      # No runtimeClassName → uses default runc handler.
+      containers:
+        - name:  prime-sieve-docker-rust
+          image: docker.io/abdulaziz7225/prime-sieve-docker-rust:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RUST_LOG
+              value: "info"
+          resources:
+            requests:
+              cpu:    "250m"
+              memory: "64Mi"
+            limits:
+              cpu:    "500m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prime-sieve-docker-rust
+  namespace: prime-sieve
+  labels:
+    app:     prime-sieve-docker-rust
+    variant: docker-rust
+spec:
+  type: NodePort
+  selector:
+    app: prime-sieve-docker-rust
+  ports:
+    - port:       8080
+      targetPort: 8080
+      nodePort:   30083
+      name:       http
