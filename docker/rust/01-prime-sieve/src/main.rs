@@ -14,10 +14,11 @@ use tracing::info;
 struct SieveParams {
     /// Upper bound (inclusive). Capped at 10 000 000.
     limit: Option<u64>,
-    /// When true, the `primes` array is omitted from the response
+    /// When non-zero, the `primes` array is omitted from the response
     /// to avoid serialisation overhead during throughput benchmarks.
+    /// Accepts "0" or "1" (serde_urlencoded rejects bool "true"/"false" strings).
     #[serde(default)]
-    no_list: bool,
+    no_list: Option<u8>,
 }
 
 // ── Response ────────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ async fn sieve_handler(Query(params): Query<SieveParams>) -> Json<SieveResponse>
         runtime:    "rust-docker",
         limit,
         count,
-        primes:     (!params.no_list).then_some(primes),
+        primes:     (params.no_list.unwrap_or(0) == 0).then_some(primes),
         elapsed_us,
     })
 }
