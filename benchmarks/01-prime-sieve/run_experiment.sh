@@ -6,8 +6,8 @@
 # USAGE:
 #   export THESIS_NODE_IP=<hetzner-server-ip>
 #   export KUBECONFIG=<path-to>/hetzner-thesis.yaml
-#   ./run_experiment.sh [--users 50] [--duration 60s] [--limit 100000] \
-#                       [--cold-start-runs 6] [--no-list 1]
+#   ./run_experiment.sh [--users 50] [--ramp 20s] [--duration 60s] \
+#                       [--limit 100000] [--cold-start-runs 6] [--no-list 1]
 #
 # WHAT IT DOES:
 #   1. Verifies all four variants are healthy.
@@ -28,6 +28,7 @@ mkdir -p "${RESULTS_DIR}"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 VUS=50
+RAMP="20s"
 DURATION="60s"
 SIEVE_LIMIT=100000
 COLD_START_RUNS=6
@@ -37,6 +38,7 @@ NO_LIST=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --users)            VUS="$2";             shift 2 ;;
+    --ramp)             RAMP="$2";            shift 2 ;;
     --duration)         DURATION="$2";        shift 2 ;;
     --limit)            SIEVE_LIMIT="$2";     shift 2 ;;
     --cold-start-runs)  COLD_START_RUNS="$2"; shift 2 ;;
@@ -103,6 +105,10 @@ for variant in wasm-rust wasm-tinygo docker-rust docker-golang; do
   echo ""
   echo "  ── ${variant} (${url}) ──"
 
+  # Ensure the variant is healthy (it may have gone down during the previous test).
+  echo "  Waiting for ${variant} to be healthy before load test …"
+  wait_healthy "${url}" || echo "  WARN: ${variant} unhealthy; load test may produce no data"
+
   # Collect idle/baseline memory before the load test.
   echo "  Collecting baseline memory …"
   python3 "${SCRIPT_DIR}/prometheus_metrics.py" \
@@ -116,13 +122,14 @@ for variant in wasm-rust wasm-tinygo docker-rust docker-golang; do
     --env BASE_URL="${url}" \
     --env VARIANT="${variant}" \
     --env VUS="${VUS}" \
+    --env RAMP="${RAMP}" \
     --env DURATION="${DURATION}" \
     --env SIEVE_LIMIT="${SIEVE_LIMIT}" \
     --env NO_LIST="${NO_LIST}" \
     --summary-export "${RESULTS_DIR}/${variant}_summary.json" \
     --out "json=${RESULTS_DIR}/${variant}_k6.json" \
     "${SCRIPT_DIR}/k6-load-test.js" \
-    2>&1 | sed 's/^/    /'
+    2>&1 | sed 's/^/    /' || true
 
   END_TS=$(date +%s)
 
@@ -166,27 +173,23 @@ import json, subprocess, sys
 
 out_path = sys.argv[1]
 
-# Maps image name fragment → variant key.
-# Adjust the repo prefix if your Docker Hub username differs.
+# Full image references as used in k8s manifests (docker.io/username/image:tag).
 images = {
-    "prime-sieve-wasm-rust":     "wasm-rust",
-    "prime-sieve-wasm-tinygo":   "wasm-tinygo",
-    "prime-sieve-docker-rust":   "docker-rust",
-    "prime-sieve-docker-golang": "docker-golang",
+    "docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest":     "wasm-rust",
+    "docker.io/abdulaziz7225/prime-sieve-wasm-tinygo:latest":   "wasm-tinygo",
+    "docker.io/abdulaziz7225/prime-sieve-docker-rust:latest":   "docker-rust",
+    "docker.io/abdulaziz7225/prime-sieve-docker-golang:latest": "docker-golang",
 }
 
 sizes = {}
-for img_fragment, variant in images.items():
-    # docker inspect works with partial names and :latest tags
-    for candidate in [f"{img_fragment}:latest", img_fragment]:
-        result = subprocess.run(
-            ["docker", "inspect", "--format={{.Size}}", candidate],
-            capture_output=True, text=True,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            size_bytes = int(result.stdout.strip())
-            sizes[variant] = round(size_bytes / 1_048_576, 2)
-            break
+for image, variant in images.items():
+    result = subprocess.run(
+        ["docker", "inspect", "--format={{.Size}}", image],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        size_bytes = int(result.stdout.strip())
+        sizes[variant] = round(size_bytes / 1_048_576, 2)
 
 if len(sizes) == 4:
     with open(out_path, "w") as f:
@@ -225,7 +228,8 @@ echo "════════════════════════�
 echo "  Step 5: Generating comparison charts"
 echo "══════════════════════════════════════════"
 
-python3 "${SCRIPT_DIR}/analyze.py" --out "${RESULTS_DIR}/comparison.png"
+python3 "${SCRIPT_DIR}/analyze.py" --out "${RESULTS_DIR}/comparison.png" \
+  2>&1 | sed 's/^/    /'
 
 echo ""
 echo "Done!  Results in ${RESULTS_DIR}/"

@@ -61,7 +61,7 @@ def load_k6_summary(variant: str) -> dict | None:
 
 def _k6_metric_val(summary: dict, metric: str, stat: str) -> float | None:
     try:
-        return float(summary["metrics"][metric]["values"][stat])
+        return float(summary["metrics"][metric][stat])
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -158,7 +158,7 @@ def plot_latency(ax: plt.Axes, summaries: dict[str, dict | None]) -> None:
         for v in ORDERED_VARIANTS:
             s = summaries.get(v)
             vals.append(_k6_metric_val(s, "http_req_duration", k6_stat) if s else 0)
-        bars = ax.bar(x + (i - 1) * width, vals, width,
+        bars = ax.bar(x + (i - 1) * width, [v or 0 for v in vals], width,
                       label=label, alpha=0.85,
                       color=["#555", "#888", "#aaa"][i])
         for bar, val in zip(bars, vals):
@@ -182,7 +182,7 @@ def plot_throughput(ax: plt.Axes, summaries: dict[str, dict | None]) -> None:
 def plot_failures(ax: plt.Axes, summaries: dict[str, dict | None]) -> None:
     vals = []
     for v in ORDERED_VARIANTS:
-        rate = _k6_metric_val(summaries.get(v), "http_req_failed", "rate")
+        rate = _k6_metric_val(summaries.get(v), "http_req_failed", "value")
         vals.append(rate * 100 if rate is not None else None)  # convert to %
     _bar(ax, vals, "Error rate (%)", "Error Rate", fmt="{:.2f}")
 
@@ -287,12 +287,57 @@ def plot_image_sizes(ax: plt.Axes, sizes: dict[str, float]) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+def _render_panel(panel: str, summaries, ts_map, cold_data, warm_data,
+                  resource, image_sizes) -> plt.Figure:
+    """Create and return a standalone single-panel figure."""
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+    if panel == "latency":
+        plot_latency(ax, summaries)
+    elif panel == "throughput":
+        plot_throughput(ax, summaries)
+    elif panel == "failures":
+        plot_failures(ax, summaries)
+    elif panel == "rps_time":
+        plot_rps_over_time(ax, ts_map)
+    elif panel == "cold_start":
+        plot_cold_start(ax, cold_data)
+    elif panel == "warm_start":
+        plot_warm_start(ax, warm_data)
+    elif panel == "memory":
+        plot_memory(ax, resource)
+    elif panel == "cpu":
+        plot_cpu(ax, resource)
+    elif panel == "image_size":
+        plot_image_sizes(ax, image_sizes)
+    fig.tight_layout()
+    return fig
+
+
+# Maps panel key → output filename (no extension).
+PANEL_FILENAMES: dict[str, str] = {
+    "latency":    "latency",
+    "throughput": "throughput",
+    "failures":   "error_rate",
+    "rps_time":   "rps_over_time",
+    "cold_start": "cold_start",
+    "warm_start": "warm_start",
+    "memory":     "memory",
+    "cpu":        "cpu",
+    "image_size": "image_size",
+}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyse 01-prime-sieve results")
     parser.add_argument(
         "--out",
         default=str(results_path("comparison.png")),
-        help="Output image path",
+        help="Output path for the combined figure",
+    )
+    parser.add_argument(
+        "--charts-dir",
+        default=str(results_path("charts")),
+        help="Directory for individual chart files (default: results/01-prime-sieve/charts/)",
     )
     args = parser.parse_args()
 
@@ -303,7 +348,7 @@ def main() -> None:
     resource     = load_resource_metrics()
     image_sizes  = load_image_sizes()
 
-    has_summaries = any(v is not None for v in summaries.values())
+    has_summaries  = any(v is not None for v in summaries.values())
     has_timeseries = any(v is not None for v in ts_map.values())
 
     if not has_summaries and cold_data is None and warm_data is None and resource is None:
@@ -324,6 +369,19 @@ def main() -> None:
     if image_sizes:
         panels.append("image_size")
 
+    # ── Individual chart files ─────────────────────────────────────────────────
+    charts_dir = Path(args.charts_dir)
+    charts_dir.mkdir(parents=True, exist_ok=True)
+
+    for panel in panels:
+        fig = _render_panel(panel, summaries, ts_map, cold_data, warm_data,
+                            resource, image_sizes)
+        out_path = charts_dir / f"{PANEL_FILENAMES[panel]}.png"
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+        print(f"  Saved chart → {out_path}")
+
+    # ── Combined figure ────────────────────────────────────────────────────────
     ncols = 2
     nrows = (len(panels) + 1) // ncols
     fig, axes = plt.subplots(nrows, ncols, figsize=(14, 5 * nrows))
@@ -360,7 +418,7 @@ def main() -> None:
 
     plt.tight_layout()
     plt.savefig(args.out, dpi=150)
-    print(f"Saved figure → {args.out}")
+    print(f"Saved combined figure → {args.out}")
 
 
 if __name__ == "__main__":

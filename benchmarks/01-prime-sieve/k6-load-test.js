@@ -18,8 +18,9 @@
  *
  * Environment variables:
  *   BASE_URL      – full base URL of the variant, e.g. http://1.2.3.4:30081
- *   VUS           – number of virtual users (default: 50)
- *   DURATION      – test duration, e.g. 60s, 2m  (default: 60s)
+ *   VUS           – peak number of virtual users (default: 50)
+ *   RAMP          – duration to ramp from 1 VU up to VUS (default: 20s)
+ *   DURATION      – duration to hold at peak VUS after ramp (default: 60s)
  *   SIEVE_LIMIT   – prime upper bound per request (default: 100000)
  *   NO_LIST       – "1" to omit the primes array from responses (default: 1)
  *
@@ -36,18 +37,38 @@ import { Trend } from "k6/metrics";
 
 // ── Custom metric: server-side algorithm compute time (microseconds) ──────────
 
-const serverComputeUs = new Trend("server_compute_us", true);
+const serverComputeUs = new Trend("server_compute_us", false);
 
 // ── Options ───────────────────────────────────────────────────────────────────
 
 export const options = {
-  vus:      parseInt(__ENV.VUS      || "50"),
-  duration: __ENV.DURATION          || "60s",
+  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
+
+  // ramping-vus: start at 1 VU, ramp to VUS over RAMP, hold for DURATION, then cool down.
+  // This avoids the "thundering herd" that overwhelms single-threaded sync servers
+  // (wasm-rust, wasm-tinygo) while still reaching full load for async servers.
+  scenarios: {
+    load: {
+      executor:        "ramping-vus",
+      startVUs:        1,
+      stages: [
+        { duration: __ENV.RAMP     || "20s", target: parseInt(__ENV.VUS || "50") },
+        { duration: __ENV.DURATION || "60s", target: parseInt(__ENV.VUS || "50") },
+        { duration: "10s",                   target: 0 },
+      ],
+      gracefulRampDown: "10s",
+    },
+  },
 
   thresholds: {
-    // Soft quality gates – experiment still records data if these are exceeded.
-    http_req_duration: ["p(95)<5000", "p(99)<10000"],
-    http_req_failed:   ["rate<0.01"],
+    // Soft quality gates – informational only, never abort the run.
+    http_req_duration: [
+      { threshold: "p(95)<5000",  abortOnFail: false },
+      { threshold: "p(99)<10000", abortOnFail: false },
+    ],
+    http_req_failed: [
+      { threshold: "rate<0.05", abortOnFail: false },
+    ],
   },
 
   // Tag all requests with the variant derived from the port in BASE_URL so
