@@ -1,0 +1,62 @@
+[
+  {
+    "variant": "wasm-rust",
+    "label": "Rust + WASM",
+    "runs_ms": [
+      42.8169410006376
+    ],
+    "stats": {
+      "n": 1,
+      "mean_ms": 42.8169410006376,
+      "median_ms": 42.8169410006376,
+      "stdev_ms": 0.0,
+      "min_ms": 42.8169410006376,
+      "max_ms": 42.8169410006376
+    }
+  },
+  {
+    "variant": "wasm-tinygo",
+    "label": "TinyGo + WASM",
+    "runs_ms": [
+      41.54806800215738
+    ],
+    "stats": {
+      "n": 1,
+      "mean_ms": 41.54806800215738,
+      "median_ms": 41.54806800215738,
+      "stdev_ms": 0.0,
+      "min_ms": 41.54806800215738,
+      "max_ms": 41.54806800215738
+    }
+  },
+  {
+    "variant": "docker-rust",
+    "label": "Rust + Docker",
+    "runs_ms": [
+      43.13741499936441
+    ],
+    "stats": {
+      "n": 1,
+      "mean_ms": 43.13741499936441,
+      "median_ms": 43.13741499936441,
+      "stdev_ms": 0.0,
+      "min_ms": 43.13741499936441,
+      "max_ms": 43.13741499936441
+    }
+  },
+  {
+    "variant": "docker-golang",
+    "label": "Go + Docker",
+    "runs_ms": [
+      3782.9411799975787
+    ],
+    "stats": {
+      "n": 1,
+      "mean_ms": 3782.9411799975787,
+      "median_ms": 3782.9411799975787,
+      "stdev_ms": 0.0,
+      "min_ms": 3782.9411799975787,
+      "max_ms": 3782.9411799975787
+    }
+  }
+]
