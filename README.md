@@ -1,23 +1,20 @@
-# thesis-experiments
+# Master Thesis Experiments
 
 Benchmark experiments comparing Docker vs. WebAssembly (WasmEdge) microservice runtimes.
 Four variants of the same prime-sieve HTTP service are deployed to a k3s cluster and load-tested.
 
-| Variant | Runtime | Language | HTTP layer | NodePort |
-|---------|---------|----------|------------|----------|
-| `docker-rust` | runc (OCI) | Rust 1.94 | axum (async, tokio) | 30083 |
-| `docker-golang` | runc (OCI) | Go 1.26 | net/http stdlib | 30084 |
-| `wasm-rust` | WasmEdge 0.14.1 via crun 1.22 | Rust 1.94 | wasmedge\_wasi\_socket (sync) | 30081 |
-| `wasm-tinygo` | WasmEdge 0.14.1 via crun 1.22 | TinyGo 0.34.0 | raw TCP (wasmedge socket ext., sync) | 30082 |
-
-> **Prerequisites:** complete the infrastructure provisioning in `../thesis-infra-setup/`
-> before running any step here.
+| Variant         | Runtime                       | Language      | HTTP layer                           | NodePort |
+| --------------- | ----------------------------- | ------------- | ------------------------------------ | -------- |
+| `docker-rust`   | runc (OCI)                    | Rust 1.94     | axum (async, tokio)                  | 30083    |
+| `docker-golang` | runc (OCI)                    | Go 1.26       | net/http stdlib                      | 30084    |
+| `wasm-rust`     | WasmEdge 0.14.1 via crun 1.22 | Rust 1.94     | wasmedge_wasi_socket (sync)          | 30081    |
+| `wasm-tinygo`   | WasmEdge 0.14.1 via crun 1.22 | TinyGo 0.34.0 | raw TCP (wasmedge socket ext., sync) | 30082    |
 
 ---
 
 ## Repository layout
 
-```
+```markdown
 thesis-experiments/
 ├── docker/
 │   ├── rust/01-prime-sieve/        # Docker + Rust (axum)
@@ -26,9 +23,19 @@ thesis-experiments/
 │   ├── rust/01-prime-sieve/        # WASM + Rust (wasmedge_wasi_socket)
 │   └── tinygo/01-prime-sieve/      # WASM + TinyGo 0.34.0 (direct WasmEdge socket imports)
 ├── k8s/01-prime-sieve/             # Kubernetes manifests
-├── benchmarks/01-prime-sieve/      # Locust load tests + analysis scripts
+├── benchmarks/01-prime-sieve/      # k6 load tests + analysis scripts
 └── results/01-prime-sieve/         # Output directory (git-ignored)
 ```
+
+### Benchmark scripts
+
+| File                    | Purpose                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| `k6-load-test.js`       | k6 load-test script — 50 VUs, configurable duration, custom `server_compute_us` metric |
+| `cold_start.py`         | Measures cold-start (run 1) and warm-start (runs 2+) by scaling deployments 0 → 1      |
+| `prometheus_metrics.py` | Queries Prometheus for memory/CPU per variant over a load-test time window             |
+| `analyze.py`            | Reads all result files and generates the multi-panel `comparison.png`                  |
+| `run_experiment.sh`     | Master orchestrator — runs all of the above in sequence                                |
 
 ---
 
@@ -52,11 +59,8 @@ export KUBECONFIG=../thesis-infra-setup/hetzner-thesis.yaml
 
 ## Phase 1 — Build and push all four images
 
-> Run once after cloning, and again whenever application code changes.
-> Replace `abdulaziz7225` with your Docker Hub username if different.
-
 ```bash
-export DOCKER_USER=abdulaziz7225
+export DOCKER_USER=<YOUR_DOCKERHUB_USERNAME>
 
 # Docker + Rust
 docker build -t docker.io/${DOCKER_USER}/prime-sieve-docker-rust:latest \
@@ -80,6 +84,7 @@ docker push docker.io/${DOCKER_USER}/prime-sieve-wasm-tinygo:latest
 ```
 
 Verify the images were pushed:
+
 ```bash
 docker images | grep prime-sieve
 ```
@@ -132,7 +137,8 @@ kubectl get pods -n prime-sieve -w
 ```
 
 Expected steady state:
-```
+
+```bash
 NAME                                       READY   STATUS    RESTARTS
 prime-sieve-docker-golang-xxx              1/1     Running   0
 prime-sieve-docker-rust-xxx                1/1     Running   0
@@ -146,12 +152,14 @@ prime-sieve-wasm-tinygo-xxx                1/1     Running   0
 # Replace with actual server IP
 IP=${THESIS_NODE_IP}
 
-curl -s http://${IP}:30081/health          # wasm-rust   → (empty body, 200)
-curl -s http://${IP}:30082/health          # wasm-tinygo → ok
-curl -s http://${IP}:30083/health          # docker-rust → (empty body, 200)
-curl -s http://${IP}:30084/health          # docker-golang → ok
+# Health checks
+# All four return HTTP 200. Only wasm-tinygo returns a body ("ok"); the rest return empty body.
+curl -sv http://${IP}:30081/health          # wasm-rust   → HTTP 200, empty body
+curl -sv http://${IP}:30082/health          # wasm-tinygo → HTTP 200, "ok"
+curl -sv http://${IP}:30083/health          # docker-rust → HTTP 200, empty body
+curl -sv http://${IP}:30084/health          # docker-golang → HTTP 200, empty body
 
-# Functional check
+# Functional check — should return JSON with a "primes" array
 curl -s "http://${IP}:30081/sieve?limit=100&no_list=0" | python3 -m json.tool
 curl -s "http://${IP}:30082/sieve?limit=100&no_list=0" | python3 -m json.tool
 curl -s "http://${IP}:30083/sieve?limit=100&no_list=0" | python3 -m json.tool
@@ -163,150 +171,88 @@ curl -s "http://${IP}:30084/sieve?limit=100&no_list=0" | python3 -m json.tool
 ## Phase 4 — Run the benchmark
 
 ```bash
-source .venv/bin/activate
-
-export THESIS_NODE_IP=<server-ip>
-export KUBECONFIG=../thesis-infra-setup/hetzner-thesis.yaml
-
-# Default run (50 users, 60 s, limit=100 000)
+# Default run (50 VUs, 60 s, limit=100 000, 6 start cycles per variant)
 ./benchmarks/01-prime-sieve/run_experiment.sh
 
 # Custom run
 ./benchmarks/01-prime-sieve/run_experiment.sh \
     --users 100         \
-    --spawn-rate 20     \
     --duration 120s     \
     --limit 1000000     \
-    --cold-start-runs 10
+    --cold-start-runs 8
 ```
+
+The orchestrator performs these steps in order:
+
+1. **Health checks** — verifies all four variants are reachable
+2. **k6 load tests** — runs each variant sequentially; queries Prometheus for memory/CPU after each run
+3. **Cold + warm start** — scales each deployment 0 → 1 six times; run 1 = cold start (image pull), runs 2–6 = warm starts (image cached)
+4. **Image sizes** — collected automatically via local `docker inspect`; falls back to a manual prompt if Docker is unavailable
+5. **Chart generation** — calls `analyze.py` to produce `comparison.png`
 
 Results are written to `results/01-prime-sieve/`:
-```
+
+```markdown
 results/01-prime-sieve/
-├── wasm-rust_stats.csv        # Locust raw stats
-├── wasm-rust.html             # Locust HTML report
-├── wasm-tinygo_stats.csv
-├── wasm-tinygo.html
-├── docker-rust_stats.csv
-├── docker-rust.html
-├── docker-golang_stats.csv
-├── docker-golang.html
-├── cold_start.json            # Cold-start timing per variant
-├── image_sizes.json           # (manual — see below)
-└── comparison.png             # Generated comparison chart
+├── wasm-rust_summary.json      # k6 summary (latency p50/p95/p99, RPS, error rate)
+├── wasm-rust_k6.json           # k6 time-series (raw, for RPS-over-time panel)
+├── wasm-tinygo_summary.json
+├── wasm-tinygo_k6.json
+├── docker-rust_summary.json
+├── docker-rust_k6.json
+├── docker-golang_summary.json
+├── docker-golang_k6.json
+├── cold_start.json             # cold-start timings (run 1 per variant)
+├── warm_start.json             # warm-start timings (runs 2+ per variant)
+├── resource_metrics.json       # idle memory, peak memory, avg CPU from Prometheus
+├── image_sizes.json            # OCI image sizes in MB
+└── comparison.png              # generated 9-panel comparison chart
 ```
 
-### Image sizes (manual step)
+### Regenerate the chart without re-running the experiment
 
-The analysis script needs image sizes. Run this on the machine where you built the images:
-
-```bash
-docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep prime-sieve
-```
-
-Create `results/01-prime-sieve/image_sizes.json`:
-```json
-{
-  "wasm-rust":     <MB as float>,
-  "wasm-tinygo":   <MB as float>,
-  "docker-rust":   <MB as float>,
-  "docker-golang": <MB as float>
-}
-```
-
-Then regenerate the chart:
 ```bash
 python3 benchmarks/01-prime-sieve/analyze.py \
     --out results/01-prime-sieve/comparison.png
+```
+
+### Run individual scripts manually
+
+```bash
+# k6 load test for one variant only
+k6 run \
+    --env BASE_URL=http://${THESIS_NODE_IP}:30081 \
+    --env VARIANT=wasm-rust \
+    --env VUS=50 \
+    --env DURATION=60s \
+    --summary-export=results/01-prime-sieve/wasm-rust_summary.json \
+    --out json=results/01-prime-sieve/wasm-rust_k6.json \
+    benchmarks/01-prime-sieve/k6-load-test.js
+
+# Cold + warm start for one variant only
+python3 benchmarks/01-prime-sieve/cold_start.py \
+    --variant wasm-rust --runs 6 --mode both
+
+# Prometheus resource metrics for one variant
+python3 benchmarks/01-prime-sieve/prometheus_metrics.py \
+    --variant wasm-rust \
+    --start <unix-ts-start> \
+    --end   <unix-ts-end>
 ```
 
 ---
 
 ## Observability
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Grafana | `http://<IP>:32000` | admin / thesis-grafana |
-| Prometheus | `http://<IP>:32090` | — |
+| Service    | URL                 | Credentials            |
+| ---------- | ------------------- | ---------------------- |
+| Grafana    | `http://<IP>:32000` | admin / thesis-grafana |
+| Prometheus | `http://<IP>:32090` | —                      |
 
----
+During a load test, you can watch live metrics in Grafana. The kube-prometheus-stack scrapes at 5 s intervals. Relevant panels to add:
 
-## Re-running the experiment
-
-### After code changes (rebuild images)
-
-```bash
-# Rebuild only what changed, e.g. wasm-rust
-docker build -t docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest \
-    wasm/rust/01-prime-sieve/
-docker push docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest
-
-# Force pods to pull the new :latest image
-kubectl rollout restart deployment/prime-sieve-wasm-rust -n prime-sieve
-kubectl rollout status  deployment/prime-sieve-wasm-rust -n prime-sieve
-```
-
-### After re-provisioning the VM (new server IP)
-
-```bash
-cd ../thesis-infra-setup
-
-make configure   # fetches new kubeconfig with updated IP
-make label-node
-make deploy-stack
-make test        # smoke-test WasmEdge runtime
-
-cd ../thesis-experiments
-
-export KUBECONFIG=../thesis-infra-setup/hetzner-thesis.yaml
-export THESIS_NODE_IP=$(cd ../thesis-infra-setup && terraform output -raw instance_public_ip)
-
-kubectl apply -f k8s/01-prime-sieve/namespace.yaml
-kubectl apply -f k8s/01-prime-sieve/docker-rust.yaml
-kubectl apply -f k8s/01-prime-sieve/docker-golang.yaml
-kubectl apply -f k8s/01-prime-sieve/wasm-rust.yaml
-kubectl apply -f k8s/01-prime-sieve/wasm-tinygo.yaml
-kubectl get pods -n prime-sieve -w
-```
-
-### Clean slate on the same server (delete + redeploy)
-
-```bash
-kubectl delete namespace prime-sieve
-kubectl apply -f k8s/01-prime-sieve/namespace.yaml
-kubectl apply -f k8s/01-prime-sieve/docker-rust.yaml
-kubectl apply -f k8s/01-prime-sieve/docker-golang.yaml
-kubectl apply -f k8s/01-prime-sieve/wasm-rust.yaml
-kubectl apply -f k8s/01-prime-sieve/wasm-tinygo.yaml
-kubectl get pods -n prime-sieve -w
-```
-
----
-
-## Debugging
-
-```bash
-# Pod status
-kubectl get pods -n prime-sieve -o wide
-
-# Logs for a crashing pod
-kubectl logs -n prime-sieve <pod-name>
-kubectl logs -n prime-sieve <pod-name> --previous   # last crashed instance
-
-# Detailed events (ImagePullBackOff, OOMKilled, etc.)
-kubectl describe pod -n prime-sieve <pod-name>
-
-# SSH into server for low-level inspection
-ssh -i ~/.ssh/id_hetzner_cloud root@${THESIS_NODE_IP}
-
-# On server: verify WasmEdge + crun setup
-crun --version             # must include +WASM:wasmedge
-wasmedge --version         # must show 0.14.1
-cat /var/log/thesis-setup.log   # full cloud-init log
-
-# On server: check containerd runtime config
-cat /var/lib/rancher/k3s/agent/etc/containerd/config.toml | grep -A10 wasmedge
-```
+- `container_memory_working_set_bytes{namespace="prime-sieve"}` — RSS per variant
+- `rate(container_cpu_usage_seconds_total{namespace="prime-sieve"}[1m])` — CPU usage
 
 ---
 
@@ -316,7 +262,6 @@ cat /var/lib/rancher/k3s/agent/etc/containerd/config.toml | grep -A10 wasmedge
 
 ```bash
 kubectl delete namespace prime-sieve
-# Observability stack stays; VM stays running (costs money)
 ```
 
 ### Destroy the VM completely (stop Hetzner billing)
@@ -324,23 +269,20 @@ kubectl delete namespace prime-sieve
 ```bash
 cd ../thesis-infra-setup
 make teardown
-# Deletes the Hetzner server, firewall, and local hetzner-thesis.yaml
-# All data on the VM is lost — images are safe on Docker Hub
 ```
-
-> After teardown, re-provisioning starts again from **Phase 2**.
 
 ---
 
 ## Toolchain version reference
 
-| Component | Version | Pinned? | Reason |
-|-----------|---------|---------|--------|
-| k3s | v1.35.2+k3s1 | cloud-init.sh | Latest stable (Jan 2026) |
-| WasmEdge | 0.14.1 | cloud-init.sh | Latest stable |
-| crun | 1.22 | cloud-init.sh | Latest stable with `--with-wasmedge` |
-| Rust (Docker) | 1.94 | Dockerfile | Current stable |
-| Rust (WASM) | 1.94 | Dockerfile | Current stable |
-| Go (Docker) | 1.26 | Dockerfile | Current stable |
-| TinyGo (WASM) | 0.34.0 | Dockerfile | net/http unusable on wasip1 for any TinyGo version; uses direct //go:wasmimport socket calls instead (see wasm/tinygo/README.md) |
-| wasmedge\_wasi\_socket | 0.5.5 | Cargo.toml | Latest; `std::net` is unimplemented for wasm32-wasip1 |
+| Component            | Version       | Pinned?                     | Reason                                                                                                                           |
+| -------------------- | ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| k3s                  | v1.35.2+k3s1  | cloud-init.sh               | Latest stable (Jan 2026)                                                                                                         |
+| WasmEdge             | 0.14.1        | cloud-init.sh               | Latest stable                                                                                                                    |
+| crun                 | 1.22          | cloud-init.sh               | Latest stable with `--with-wasmedge`                                                                                             |
+| k6                   | latest stable | setup-local Makefile target | Load testing tool                                                                                                                |
+| Rust (Docker)        | 1.94          | Dockerfile                  | Current stable                                                                                                                   |
+| Rust (WASM)          | 1.94          | Dockerfile                  | Current stable                                                                                                                   |
+| Go (Docker)          | 1.26          | Dockerfile                  | Current stable                                                                                                                   |
+| TinyGo (WASM)        | 0.34.0        | Dockerfile                  | net/http unusable on wasip1 for any TinyGo version; uses direct //go:wasmimport socket calls instead (see wasm/tinygo/README.md) |
+| wasmedge_wasi_socket | 0.5.5         | Cargo.toml                  | Latest; `std::net` is unimplemented for wasm32-wasip1                                                                            |
