@@ -36,11 +36,9 @@ import { check } from "k6";
 import { Trend } from "k6/metrics";
 
 // ── Custom metric: server-side algorithm compute time (microseconds) ──────────
-
 const serverComputeUs = new Trend("server_compute_us", false);
 
 // ── Options ───────────────────────────────────────────────────────────────────
-
 export const options = {
   summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
 
@@ -77,11 +75,10 @@ export const options = {
 };
 
 // ── Default function (executed by every VU on every iteration) ────────────────
-
 export default function () {
-  const baseUrl    = __ENV.BASE_URL   || "http://localhost:30081";
+  const baseUrl    = __ENV.BASE_URL    || "http://localhost:30081";
   const limit      = __ENV.SIEVE_LIMIT || "100000";
-  const noList     = __ENV.NO_LIST    || "1";
+  const noList     = __ENV.NO_LIST     || "1";
 
   const url = `${baseUrl}/sieve?limit=${limit}&no_list=${noList}`;
 
@@ -106,7 +103,6 @@ export default function () {
 }
 
 // ── Setup: verify the variant is healthy before starting the load ─────────────
-
 export function setup() {
   const baseUrl = __ENV.BASE_URL || "http://localhost:30081";
   const res = http.get(`${baseUrl}/health`);

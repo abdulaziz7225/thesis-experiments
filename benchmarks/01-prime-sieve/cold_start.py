@@ -45,7 +45,6 @@ from shared.utils import (
     VARIANTS,
     VARIANT_LABELS,
     base_url,
-    results_path,
     save_json,
     scale_deployment,
     wait_for_http,

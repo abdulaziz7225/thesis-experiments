@@ -9,10 +9,9 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # ── Variant registry ─────────────────────────────────────────────────────────
-
 # Maps short variant name → NodePort on the Hetzner server.
 # Update NODE_IP via environment variable THESIS_NODE_IP.
 VARIANTS: dict[str, int] = {
@@ -54,7 +53,6 @@ def base_url(variant: str) -> str:
 
 
 # ── kubectl helpers ───────────────────────────────────────────────────────────
-
 def kubeconfig_path() -> str:
     kc = os.environ.get(
         "KUBECONFIG",
@@ -88,7 +86,6 @@ def wait_for_ready(name: str, namespace: str, timeout: int = 120) -> None:
 
 
 # ── Results helpers ───────────────────────────────────────────────────────────
-
 RESULTS_DIR = Path(__file__).parents[2] / "results" / "01-prime-sieve"
 
 
@@ -111,7 +108,6 @@ def load_json(filename: str) -> dict | list:
 
 
 # ── Health-check poll ─────────────────────────────────────────────────────────
-
 def wait_for_http(url: str, path: str = "/health", timeout: float = 120.0) -> float:
     """
     Poll GET <url><path> until HTTP 200. Returns the elapsed time in seconds.
@@ -135,7 +131,6 @@ def wait_for_http(url: str, path: str = "/health", timeout: float = 120.0) -> fl
 
 
 # ── Prometheus helpers ────────────────────────────────────────────────────────
-
 def prometheus_url() -> str:
     """Return the Prometheus base URL using THESIS_NODE_IP."""
     return f"http://{node_ip()}:32090"
