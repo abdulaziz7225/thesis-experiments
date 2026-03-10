@@ -8,7 +8,7 @@ Four variants of the same prime-sieve HTTP service are deployed to a k3s cluster
 | `docker-rust`   | runc (OCI)                    | Rust 1.94     | axum (async, tokio)                  | 30083    |
 | `docker-golang` | runc (OCI)                    | Go 1.26       | net/http stdlib                      | 30084    |
 | `wasm-rust`     | WasmEdge 0.14.1 via crun 1.22 | Rust 1.94     | wasmedge_wasi_socket (sync)          | 30081    |
-| `wasm-tinygo`   | WasmEdge 0.14.1 via crun 1.22 | TinyGo 0.34.0 | raw TCP (wasmedge socket ext., sync) | 30082    |
+| `wasm-tinygo`   | WasmEdge 0.14.1 via crun 1.22 | TinyGo 0.40.1 | raw TCP (wasmedge socket ext., sync) | 30082    |
 
 ---
 
@@ -21,7 +21,7 @@ thesis-experiments/
 │   └── golang/01-prime-sieve/      # Docker + Go (net/http)
 ├── wasm/
 │   ├── rust/01-prime-sieve/        # WASM + Rust (wasmedge_wasi_socket)
-│   └── tinygo/01-prime-sieve/      # WASM + TinyGo 0.34.0 (direct WasmEdge socket imports)
+│   └── tinygo/01-prime-sieve/      # WASM + TinyGo 0.40.1 (direct WasmEdge socket imports)
 ├── k8s/01-prime-sieve/             # Kubernetes manifests
 ├── benchmarks/01-prime-sieve/      # k6 load tests + analysis scripts
 └── results/01-prime-sieve/         # Output directory (git-ignored)
@@ -77,7 +77,7 @@ docker build -t docker.io/${DOCKER_USER}/prime-sieve-wasm-rust:latest \
     wasm/rust/01-prime-sieve/
 docker push docker.io/${DOCKER_USER}/prime-sieve-wasm-rust:latest
 
-# WASM + TinyGo  (uses TinyGo 0.34.0 — see wasm/tinygo/01-prime-sieve/Dockerfile)
+# WASM + TinyGo  (uses TinyGo 0.40.1 — see wasm/tinygo/01-prime-sieve/Dockerfile)
 docker build -t docker.io/${DOCKER_USER}/prime-sieve-wasm-tinygo:latest \
     wasm/tinygo/01-prime-sieve/
 docker push docker.io/${DOCKER_USER}/prime-sieve-wasm-tinygo:latest
@@ -153,11 +153,10 @@ prime-sieve-wasm-tinygo-xxx                1/1     Running   0
 IP=${THESIS_NODE_IP}
 
 # Health checks
-# All four return HTTP 200. Only wasm-tinygo returns a body ("ok"); the rest return empty body.
-curl -sv http://${IP}:30081/health          # wasm-rust   → HTTP 200, empty body
-curl -sv http://${IP}:30082/health          # wasm-tinygo → HTTP 200, "ok"
-curl -sv http://${IP}:30083/health          # docker-rust → HTTP 200, empty body
-curl -sv http://${IP}:30084/health          # docker-golang → HTTP 200, empty body
+curl -sv http://${IP}:30081/health          # wasm-rust   → HTTP 200
+curl -sv http://${IP}:30082/health          # wasm-tinygo → HTTP 200
+curl -sv http://${IP}:30083/health          # docker-rust → HTTP 200
+curl -sv http://${IP}:30084/health          # docker-golang → HTTP 200
 
 # Functional check — should return JSON with a "primes" array
 curl -s "http://${IP}:30081/sieve?limit=100&no_list=0" | python3 -m json.tool
@@ -284,5 +283,5 @@ make teardown
 | Rust (Docker)        | 1.94          | Dockerfile                  | Current stable                                                                                                                   |
 | Rust (WASM)          | 1.94          | Dockerfile                  | Current stable                                                                                                                   |
 | Go (Docker)          | 1.26          | Dockerfile                  | Current stable                                                                                                                   |
-| TinyGo (WASM)        | 0.34.0        | Dockerfile                  | net/http unusable on wasip1 for any TinyGo version; uses direct //go:wasmimport socket calls instead (see wasm/tinygo/README.md) |
+| TinyGo (WASM)        | 0.40.1        | Dockerfile                  | net/http unusable on wasip1 for any TinyGo version; uses direct //go:wasmimport socket calls instead (see wasm/tinygo/README.md) |
 | wasmedge_wasi_socket | 0.5.5         | Cargo.toml                  | Latest; `std::net` is unimplemented for wasm32-wasip1                                                                            |
