@@ -354,11 +354,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyse 01-prime-sieve results")
     parser.add_argument(
-        "--out",
-        default=str(results_path("comparison.png")),
-        help="Output path for the combined figure",
-    )
-    parser.add_argument(
         "--charts-dir",
         default=str(results_path("charts")),
         help="Directory for individual chart files (default: results/01-prime-sieve/charts/)",
@@ -405,53 +400,6 @@ def main() -> None:
         plt.close(fig)
         print(f"  Saved chart → {out_path}")
 
-    # ── Combined figure ────────────────────────────────────────────────────────
-    ncols = 2
-    nrows = (len(panels) + 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14, 5 * nrows))
-    axes_flat: list[Axes] = (
-        axes.flatten().tolist() if nrows > 1
-        else list(axes) if ncols > 1
-        else [axes]
-    )
-
-    for ax, panel in zip(axes_flat, panels):
-        if panel == "latency":
-            plot_latency(ax, summaries)
-        elif panel == "throughput":
-            plot_throughput(ax, summaries)
-        elif panel == "failures":
-            plot_failures(ax, summaries)
-        elif panel == "rps_time":
-            plot_rps_over_time(ax, ts_map)
-        elif panel == "cold_start":
-            assert cold_data is not None
-            plot_cold_start(ax, cold_data)
-        elif panel == "warm_start":
-            assert warm_data is not None
-            plot_warm_start(ax, warm_data)
-        elif panel == "memory":
-            assert resource is not None
-            plot_memory(ax, resource)
-        elif panel == "cpu":
-            assert resource is not None
-            plot_cpu(ax, resource)
-        elif panel == "image_size":
-            assert image_sizes is not None
-            plot_image_sizes(ax, image_sizes)
-
-    for ax in axes_flat[len(panels):]:
-        ax.set_visible(False)
-
-    fig.suptitle(
-        "01 – Prime Sieve: WebAssembly vs Docker\n"
-        "Rust-WASM · TinyGo-WASM · Rust-Docker · Go-Docker",
-        fontsize=14, fontweight="bold", y=1.01,
-    )
-
-    plt.tight_layout()
-    plt.savefig(args.out, dpi=150)
-    print(f"Saved combined figure → {args.out}")
 
 
 if __name__ == "__main__":

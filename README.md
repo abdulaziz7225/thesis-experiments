@@ -34,7 +34,7 @@ thesis-experiments/
 | `k6-load-test.js`       | k6 load-test script — 50 VUs, configurable duration, custom `server_compute_us` metric |
 | `cold_start.py`         | Measures cold-start (run 1) and warm-start (runs 2+) by scaling deployments 0 → 1      |
 | `prometheus_metrics.py` | Queries Prometheus for memory/CPU per variant over a load-test time window             |
-| `analyze.py`            | Reads all result files and generates the multi-panel `comparison.png`                  |
+| `analyze.py`            | Reads all result files and generates individual chart PNGs into `charts/`              |
 | `run_experiment.sh`     | Master orchestrator — runs all of the above in sequence                                |
 
 ---
@@ -187,7 +187,7 @@ The orchestrator performs these steps in order:
 2. **k6 load tests** — runs each variant sequentially; queries Prometheus for memory/CPU after each run
 3. **Cold + warm start** — scales each deployment 0 → 1 six times; run 1 = cold start (image pull), runs 2–6 = warm starts (image cached)
 4. **Image sizes** — collected automatically via local `docker inspect`; falls back to a manual prompt if Docker is unavailable
-5. **Chart generation** — calls `analyze.py` to produce `comparison.png`
+5. **Chart generation** — calls `analyze.py` to produce individual chart PNGs in `results/01-prime-sieve/charts/`
 
 Results are written to `results/01-prime-sieve/`:
 
@@ -205,14 +205,13 @@ results/01-prime-sieve/
 ├── warm_start.json             # warm-start timings (runs 2+ per variant)
 ├── resource_metrics.json       # idle memory, peak memory, avg CPU from Prometheus
 ├── image_sizes.json            # OCI image sizes in MB
-└── comparison.png              # generated 9-panel comparison chart
+└── charts/                     # individual chart PNGs (latency, throughput, …)
 ```
 
-### Regenerate the chart without re-running the experiment
+### Regenerate the charts without re-running the experiment
 
 ```bash
-python3 benchmarks/01-prime-sieve/analyze.py \
-    --out results/01-prime-sieve/comparison.png
+python3 benchmarks/01-prime-sieve/analyze.py
 ```
 
 ### Run individual scripts manually

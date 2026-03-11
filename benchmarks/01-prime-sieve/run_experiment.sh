@@ -15,7 +15,7 @@
 #      After each run, queries Prometheus for memory/CPU metrics.
 #   3. Runs cold-start AND warm-start measurements (--mode both).
 #   4. Collects OCI image sizes via local docker inspect (falls back to manual prompt).
-#   5. Calls analyze.py to generate comparison charts.
+#   5. Calls analyze.py to generate individual charts.
 #
 # OUTPUT:  results/01-prime-sieve/
 # ============================================================
@@ -225,15 +225,14 @@ fi
 # ── Step 5: Generate charts ───────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Step 5: Generating comparison charts"
+echo "  Step 5: Generating charts"
 echo "══════════════════════════════════════════"
 
-python3 "${SCRIPT_DIR}/analyze.py" --out "${RESULTS_DIR}/comparison.png" \
+python3 "${SCRIPT_DIR}/analyze.py" \
   2>&1 | sed 's/^/    /'
 
 echo ""
 echo "Done!  Results in ${RESULTS_DIR}/"
-echo "  comparison.png           main figure"
 echo "  *_summary.json           per-variant k6 summaries"
 echo "  *_k6.json                per-variant k6 time-series (raw)"
 echo "  cold_start.json          cold-start timings (run 1)"
