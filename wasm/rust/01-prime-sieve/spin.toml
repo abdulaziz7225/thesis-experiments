@@ -1,0 +1,19 @@
+spin_manifest_version = 2
+
+[application]
+name = "prime-sieve-wasm-rust"
+version = "0.1.0"
+description = "Prime sieve HTTP service — Rust + SpinKube (WASI P2, Wasmtime/Cranelift)"
+
+# All HTTP paths are routed to the single prime-sieve component.
+[[trigger.http]]
+route = "/..."
+component = "prime-sieve"
+
+[component.prime-sieve]
+# Path used by `spin up` (local dev) and `spin registry push` (OCI packaging).
+# Concurrency limit (max_instances) is set via SpinApp CRD spec.executor, not here.
+source = "target/wasm32-wasip1/release/prime_sieve_spin.wasm"
+
+[component.prime-sieve.build]
+command = "cargo component build --release"
