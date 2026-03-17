@@ -1,0 +1,55 @@
+# TinyGo + SpinKube (Wasmtime/Cranelift / WASI P2) variant
+# NodePort: 30082  →  pod :80
+#
+# Prerequisites:
+#   1. SpinOperator is deployed (make deploy-stack in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy-stack)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label-node)
+#   4. Image is built and pushed via spin registry push (NOT docker push):
+#        cd wasm/tinygo/01-prime-sieve
+#        tinygo build -target=wasip2 -gc=conservative -opt=2 -o app.wasm .
+#        spin registry push docker.io/abdulaziz7225/prime-sieve-wasm-tinygo:latest
+#      Then replace the image field below.
+#
+# Why SpinApp instead of Deployment: see wasm-rust.yaml comment.
+# Why port 80: Spin's default HTTP listen port inside the component is 80.
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: prime-sieve-wasm-tinygo
+  namespace: prime-sieve
+  labels:
+    variant: wasm-tinygo
+    experiment: "01-prime-sieve"
+spec:
+  image: docker.io/abdulaziz7225/prime-sieve-wasm-tinygo:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  # Resources are identical to all other variants (supervisor requirement: same capacity).
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "500m"
+      memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prime-sieve-wasm-tinygo
+  namespace: prime-sieve
+  labels:
+    variant: wasm-tinygo
+    experiment: "01-prime-sieve"
+spec:
+  type: NodePort
+  # SpinOperator labels the pods it creates with core.spinkube.dev/app = SpinApp name.
+  selector:
+    core.spinkube.dev/app: prime-sieve-wasm-tinygo
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30082
+      name:       http

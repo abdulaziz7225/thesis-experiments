@@ -1,12 +1,13 @@
 # Rust + WasmEdge variant
-# NodePort: 30081  →  pod :8080
+# NodePort: 30085  →  pod :8080
+# OPTIONAL: WasmEdge/WASI P1 comparison variant. Deploy only when ENABLE_WASMEDGE=true.
 #
 # Prerequisites:
-#   1. RuntimeClass "wasmedge" exists (make deploy-stack in thesis-infra-setup)
-#   2. Node is labelled with runtime.kwasm.sh/runtime=wasmedge (make label-node)
+#   1. RuntimeClass "wasmedge" exists (make deploy-wasmedge in thesis-infra-setup)
+#   2. Node is labelled with runtime.kwasm.sh/runtime=wasmedge (make label-node-wasmedge)
 #   3. Image is built and pushed:
 #        docker build -t <docker.io/abdulaziz7225>/prime-sieve-wasm-rust:latest \
-#               wasm/rust/01-prime-sieve/
+#               wasm/wasmedge/rust/01-prime-sieve/
 #        docker push <docker.io/abdulaziz7225>/prime-sieve-wasm-rust:latest
 #      Then replace the image field below.
 ---
@@ -78,5 +79,5 @@ spec:
   ports:
     - port:       8080
       targetPort: 8080
-      nodePort:   30081
+      nodePort:   30085
       name:       http

@@ -1,0 +1,64 @@
+# Rust + SpinKube (Wasmtime/Cranelift / WASI P2) variant
+# NodePort: 30081  →  pod :80
+#
+# Prerequisites:
+#   1. SpinOperator is deployed (make deploy-stack in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy-stack)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label-node)
+#   4. Image is built and pushed via spin registry push (NOT docker push):
+#        cd wasm/rust/01-prime-sieve
+#        cargo component build --release
+#        spin registry push docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest
+#      Then replace the image field below.
+#
+# Why SpinApp instead of Deployment:
+#   SpinApp is the SpinOperator CRD that manages the lifecycle of Spin applications
+#   on Kubernetes. The SpinOperator creates a Deployment + applies runtimeClassName
+#   wasmtime-spin + sets correct OCI annotations for containerd-shim-spin-v2.
+#   Using a raw Deployment with runtimeClassName would also work but bypasses the
+#   operator's image validation and health management.
+#
+# Why port 80 instead of 8080:
+#   Spin's default HTTP listen address inside the Wasm component is 0.0.0.0:80.
+#   This differs from the Docker variants (which explicitly bind to :8080).
+#   The Service uses port 80 accordingly.
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: prime-sieve-wasm-rust
+  namespace: prime-sieve
+  labels:
+    variant: wasm-rust
+    experiment: "01-prime-sieve"
+spec:
+  image: docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  # Resources are identical to all other variants (supervisor requirement: same capacity).
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "500m"
+      memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prime-sieve-wasm-rust
+  namespace: prime-sieve
+  labels:
+    variant: wasm-rust
+    experiment: "01-prime-sieve"
+spec:
+  type: NodePort
+  # SpinOperator labels the pods it creates with core.spinkube.dev/app = SpinApp name.
+  selector:
+    core.spinkube.dev/app: prime-sieve-wasm-rust
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30081
+      name:       http

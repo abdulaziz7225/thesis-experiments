@@ -1,9 +1,10 @@
 # TinyGo + WasmEdge variant
-# NodePort: 30082  →  pod :8080
+# NodePort: 30086  →  pod :8080
+# OPTIONAL: WasmEdge/WASI P1 comparison variant. Deploy only when ENABLE_WASMEDGE=true.
 #
 # Build & push:
 #   docker build -t <docker.io/abdulaziz7225>/prime-sieve-wasm-tinygo:latest \
-#          wasm/tinygo/01-prime-sieve/
+#          wasm/wasmedge/tinygo/01-prime-sieve/
 #   docker push <docker.io/abdulaziz7225>/prime-sieve-wasm-tinygo:latest
 ---
 apiVersion: apps/v1
@@ -73,5 +74,5 @@ spec:
   ports:
     - port:       8080
       targetPort: 8080
-      nodePort:   30082
+      nodePort:   30086
       name:       http
