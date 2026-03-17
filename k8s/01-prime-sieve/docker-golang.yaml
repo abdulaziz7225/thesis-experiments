@@ -32,6 +32,13 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+          # Limit Go's scheduler to 1 OS thread so the comparison measures
+          # runtime overhead rather than parallelism.  The WASI P2 variants are
+          # architecturally single-threaded; this env var levels the playing field
+          # for the Docker variants.
+          env:
+            - name: GOMAXPROCS
+              value: "1"
           resources:
             requests:
               cpu:    "250m"

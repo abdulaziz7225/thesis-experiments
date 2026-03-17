@@ -36,6 +36,11 @@ spec:
           env:
             - name: RUST_LOG
               value: "info"
+            # Limit Tokio to 1 worker thread — same reasoning as GOMAXPROCS=1 in
+            # docker-golang.yaml: levels the parallelism playing field against the
+            # inherently single-threaded WASI P2 variants.
+            - name: TOKIO_WORKER_THREADS
+              value: "1"
           resources:
             requests:
               cpu:    "250m"
