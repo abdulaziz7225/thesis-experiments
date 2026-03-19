@@ -42,17 +42,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from shared.utils import (
+    SPINAPP_VARIANTS,
     VARIANTS,
     VARIANT_LABELS,
     base_url,
     save_json,
-    scale_deployment,
+    scale_any,
     wait_for_http,
     wait_for_ready,
 )
 
 NAMESPACE = "prime-sieve"
 
+# Wasm variants: SpinApp name — scaling patches the SpinApp CRD via scale_any().
+# Docker variants: plain Deployment name.
 DEPLOYMENT_NAMES: dict[str, str] = {
     "wasm-rust":     "prime-sieve-wasm-rust",
     "wasm-tinygo":   "prime-sieve-wasm-tinygo",
@@ -114,10 +117,10 @@ def measure_variant(variant: str, runs: int, mode: str) -> tuple[dict | None, di
             f"scaling to 0 …",
             end=" ", flush=True,
         )
-        scale_deployment(deployment, NAMESPACE, 0)
+        scale_any(variant, deployment, NAMESPACE, 0)
         time.sleep(3)  # give kubelet time to remove the pod
 
-        scale_deployment(deployment, NAMESPACE, 1)
+        scale_any(variant, deployment, NAMESPACE, 1)
 
         try:
             elapsed = wait_for_http(url, path="/health", timeout=180)

@@ -43,16 +43,16 @@ COLORS = [VARIANT_COLORS[v] for v in ORDERED_VARIANTS]
 
 
 # ── Data loaders ──────────────────────────────────────────────────────────────
-def load_k6_summary(variant: str) -> dict | None:
+def load_k6_summary(variant: str, mode: str = "limited") -> dict | None:
     """
-    Load a k6 --summary-export JSON file.
+    Load a k6 --summary-export JSON file from results/01-prime-sieve/<mode>/.
     Key fields used:
       metrics.http_req_duration.values.{med, p(95), p(99)}  – latency in ms
       metrics.http_reqs.values.rate                         – RPS
       metrics.http_req_failed.values.rate                   – error rate (0-1)
       metrics.server_compute_us.values.{med, p(95), p(99)}  – server compute µs
     """
-    path = results_path(f"{variant}_summary.json")
+    path = results_path(f"{mode}/{variant}_summary.json")
     if not path.exists():
         print(f"  [warn] {path.name} not found – skipping {variant}")
         return None
@@ -67,12 +67,12 @@ def _k6_metric_val(summary: dict, metric: str, stat: str) -> float | None:
         return None
 
 
-def load_k6_timeseries(variant: str) -> pd.DataFrame | None:
+def load_k6_timeseries(variant: str, mode: str = "limited") -> pd.DataFrame | None:
     """
     Parse k6 --out json line-delimited JSON to extract RPS over time.
     Each line is a JSON object; we want type=="Point", metric=="http_reqs".
     """
-    path = results_path(f"{variant}_k6.json")
+    path = results_path(f"{mode}/{variant}_k6.json")
     if not path.exists():
         return None
     rows = []
@@ -354,14 +354,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyse 01-prime-sieve results")
     parser.add_argument(
+        "--mode",
+        default="limited",
+        choices=["limited", "unlimited"],
+        help="Scaling mode to analyse (reads from results/01-prime-sieve/<mode>/)",
+    )
+    parser.add_argument(
         "--charts-dir",
-        default=str(results_path("charts")),
-        help="Directory for individual chart files (default: results/01-prime-sieve/charts/)",
+        default=None,
+        help="Directory for individual chart files (default: results/01-prime-sieve/<mode>/charts/)",
     )
     args = parser.parse_args()
 
-    summaries = {v: load_k6_summary(v) for v in ORDERED_VARIANTS}
-    ts_map = {v: load_k6_timeseries(v) for v in ORDERED_VARIANTS}
+    if args.charts_dir is None:
+        args.charts_dir = str(results_path(f"{args.mode}/charts"))
+
+    summaries = {v: load_k6_summary(v, args.mode) for v in ORDERED_VARIANTS}
+    ts_map = {v: load_k6_timeseries(v, args.mode) for v in ORDERED_VARIANTS}
     cold_data = load_startup("cold_start.json")
     warm_data = load_startup("warm_start.json")
     resource = load_resource_metrics()

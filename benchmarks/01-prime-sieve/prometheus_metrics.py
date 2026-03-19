@@ -18,7 +18,7 @@ Output: results/01-prime-sieve/resource_metrics.json
 Schema per variant entry:
   {
     "variant": "wasm-rust",
-    "label":   "Rust + WASM",
+    "label":   "Rust + Wasm (P2)",
     "memory_idle_mb":  <float | null>,
     "memory_peak_mb":  <float | null>,
     "cpu_avg_mcores":  <float | null>   # millicores during load window
