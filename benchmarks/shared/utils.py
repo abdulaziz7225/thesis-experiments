@@ -14,26 +14,38 @@ from typing import Any
 # ── Variant registry ─────────────────────────────────────────────────────────
 # Maps short variant name → NodePort on the Hetzner server.
 # Update NODE_IP via environment variable THESIS_NODE_IP.
+#
+# Primary variants (4-variant experiment matrix):
+#   Wasm (Wasmtime/Cranelift, SpinKube) : wasm-rust, wasm-tinygo    ports 30081-30082
+#   Docker  (runc/native)               : docker-rust, docker-golang ports 30083-30084
+#
+# Optional WasmEdge/WASI P1 comparison variants occupy ports 30085-30086.
+# Deploy only when ENABLE_WASMEDGE=true; see k8s/01-prime-sieve/optional/.
 VARIANTS: dict[str, int] = {
-    "wasm-rust":    30081,
-    "wasm-tinygo":  30082,
-    "docker-rust":  30083,
+    "wasm-rust":     30081,   # SpinKube / WASI P2 / Wasmtime-Cranelift
+    "wasm-tinygo":   30082,   # SpinKube / WASI P2 / Wasmtime-Cranelift
+    "docker-rust":   30083,
     "docker-golang": 30084,
 }
 
 VARIANT_LABELS: dict[str, str] = {
-    "wasm-rust":     "Rust + WASM",
-    "wasm-tinygo":   "TinyGo + WASM",
+    "wasm-rust":     "Rust + Wasm (P2)",
+    "wasm-tinygo":   "TinyGo + Wasm (P2)",
     "docker-rust":   "Rust + Docker",
     "docker-golang": "Go + Docker",
 }
 
 VARIANT_COLORS: dict[str, str] = {
-    "wasm-rust":     "#e07b39",   # orange  (WASM family)
-    "wasm-tinygo":   "#f5c242",   # yellow
+    "wasm-rust":     "#e67e22",   # amber   (Wasm/WASI P2 family)
+    "wasm-tinygo":   "#8e44ad",   # purple
     "docker-rust":   "#3b82f6",   # blue    (Docker family)
     "docker-golang": "#22c55e",   # green
 }
+
+# Variants managed by SpinOperator (SpinApp CRD) rather than plain Deployments.
+# Scaling must be done via `kubectl patch spinapp` — the SpinOperator reconciles
+# any direct `kubectl scale deployment` back to the SpinApp's spec.replicas.
+SPINAPP_VARIANTS: frozenset[str] = frozenset({"wasm-rust", "wasm-tinygo"})
 
 
 def node_ip() -> str:
@@ -75,6 +87,25 @@ def scale_deployment(name: str, namespace: str, replicas: int) -> None:
     kubectl("scale", "deployment", name, f"--replicas={replicas}", "-n", namespace)
 
 
+def scale_spinapp(name: str, namespace: str, replicas: int) -> None:
+    """Scale a SpinApp CRD. Must be used for Spin variants — the SpinOperator
+    reconciles any direct kubectl scale deployment back to spec.replicas."""
+    kubectl(
+        "patch", "spinapp", name,
+        "-n", namespace,
+        "--type=merge",
+        "-p", f'{{"spec":{{"replicas":{replicas}}}}}',
+    )
+
+
+def scale_any(variant: str, name: str, namespace: str, replicas: int) -> None:
+    """Scale a variant regardless of whether it is a SpinApp or a Deployment."""
+    if variant in SPINAPP_VARIANTS:
+        scale_spinapp(name, namespace, replicas)
+    else:
+        scale_deployment(name, namespace, replicas)
+
+
 def wait_for_ready(name: str, namespace: str, timeout: int = 120) -> None:
     kubectl(
         "rollout", "status",
@@ -86,24 +117,28 @@ def wait_for_ready(name: str, namespace: str, timeout: int = 120) -> None:
 
 
 # ── Results helpers ───────────────────────────────────────────────────────────
-RESULTS_DIR = Path(__file__).parents[2] / "results" / "01-prime-sieve"
+_REPO_RESULTS = Path(__file__).parents[2] / "results"
+
+# Default sub-directory for backwards compatibility with 01-prime-sieve scripts.
+_DEFAULT_SUBDIR = "01-prime-sieve"
 
 
-def results_path(filename: str) -> Path:
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    return RESULTS_DIR / filename
+def results_path(filename: str, subdir: str = _DEFAULT_SUBDIR) -> Path:
+    d = _REPO_RESULTS / subdir
+    d.mkdir(parents=True, exist_ok=True)
+    return d / filename
 
 
-def save_json(data: dict | list, filename: str) -> Path:
-    path = results_path(filename)
+def save_json(data: dict | list, filename: str, subdir: str = _DEFAULT_SUBDIR) -> Path:
+    path = results_path(filename, subdir=subdir)
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     print(f"Saved → {path}")
     return path
 
 
-def load_json(filename: str) -> dict | list:
-    with open(results_path(filename)) as f:
+def load_json(filename: str, subdir: str = _DEFAULT_SUBDIR) -> dict | list:
+    with open(results_path(filename, subdir=subdir)) as f:
         return json.load(f)
 
 
