@@ -1,0 +1,17 @@
+spin_manifest_version = 2
+
+[application]
+name = "memory-bandwidth-wasm-rust"
+version = "0.1.0"
+description = "memory-bandwidth HTTP service — Rust + SpinKube (WASI P2, Wasmtime/Cranelift)"
+
+[[trigger.http]]
+route = "/..."
+component = "memory-bandwidth"
+
+[component.memory-bandwidth]
+# Concurrency limit is set via SpinApp CRD spec.executor, not here.
+source = "target/wasm32-wasip1/release/memory_bandwidth_spin.wasm"
+
+[component.memory-bandwidth.build]
+command = "cargo component build --release"
