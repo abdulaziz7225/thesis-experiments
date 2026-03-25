@@ -16,9 +16,9 @@ RUN touch src/main.rs && cargo build --release
 # ── Stage 2: minimal runtime image ──────────────────────────────────────────
 FROM scratch
 
-COPY --from=builder /app/target/release/io-bound /io-bound
+COPY --from=builder /app/target/release/memory-bandwidth /memory-bandwidth
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 EXPOSE 8080
 
-ENTRYPOINT ["/io-bound"]
+ENTRYPOINT ["/memory-bandwidth"]
