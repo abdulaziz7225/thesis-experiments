@@ -1,0 +1,17 @@
+spin_manifest_version = 2
+
+[application]
+name = "memory-bandwidth-wasm-tinygo"
+version = "0.1.0"
+description = "memory-bandwidth HTTP service — TinyGo + SpinKube (wasip1, Wasmtime/Cranelift)"
+
+[[trigger.http]]
+route = "/..."
+component = "memory-bandwidth"
+
+[component.memory-bandwidth]
+# Concurrency limit is set via SpinApp CRD spec.executor, not here.
+source = "app.wasm"
+
+[component.memory-bandwidth.build]
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
