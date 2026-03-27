@@ -1,18 +1,18 @@
-// TinyGo + Spin (SpinKube / WASI P2) – prime-sieve HTTP component
+// TinyGo + Spin (SpinKube / WASI P1) – prime-sieve HTTP component
 //
-// Build:  tinygo build -target=wasip2 -gc=conservative -opt=2 -o app.wasm .
+// Build:  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 // Push:   spin registry push docker.io/abdulaziz7225/prime-sieve-wasm-tinygo:latest
 // Deploy: kubectl apply -f k8s/01-prime-sieve/wasm-tinygo.yaml
 //
-// Key differences from wasm/wasmedge/tinygo/01-prime-sieve (WASI P1 archive):
-//   - Runtime:  Wasmtime/Cranelift (via Spin)  vs  WasmEdge/LLVM
-//   - WASI:     Preview 2 (Component Model)    vs  Preview 1 (snapshot_preview1)
-//   - HTTP:     spinhttp.Handle() + net/http    vs  serveWasmEdge() custom TCP loop
-//   - server.go is ELIMINATED — no //go:wasmimport sock_open/bind/listen needed
-//   - TinyGo wasip2 target handles wasi:http bindings automatically via Spin SDK
-//   - runtime field in JSON: "wasm-tinygo"
+// Why wasip1 (not wasip2): TinyGo's wasip2 target compiles to a WASI CLI command
+// (exports wasi:cli/run), NOT a wasi:http/proxy component. Spin requires one of:
+//   wasi:http/incoming-handler@0.2.*, or fermyon:spin/inbound-http.
+// The Fermyon Go SDK (wasip1 + CGo) exports fermyon:spin/inbound-http, which Spin
+// accepts. wasip2 without the SDK is not a valid Spin HTTP component.
 //
-// Handler code is identical to wasm/tinygo and docker/golang variants —
+// runtime field in JSON: "wasm-tinygo"
+//
+// Handler code is identical to docker/golang variant —
 // same net/http types (ResponseWriter, Request), same JSON encoding,
 // same query-parameter parsing.
 
@@ -25,6 +25,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	spinhttp "github.com/spinframework/spin-go-sdk/v2/http"
 )
 
 // ── Response ─────────────────────────────────────────────────────────────────
@@ -102,12 +104,21 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
-// TinyGo wasip2 automatically exports wasi:http/incoming-handler using the
-// default http.ServeMux. No Spin SDK or spinhttp.Handle() call needed.
+// spinhttp.Handle() registers the top-level dispatcher. Spin calls
+// spin_http_handle_http_request (exported by the Fermyon SDK's C layer) on
+// each HTTP request and routes it here.
 func init() {
-	http.HandleFunc("/sieve", sieveHandler)
-	http.HandleFunc("/health", healthHandler)
+	spinhttp.Handle(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/sieve":
+			sieveHandler(w, r)
+		case "/health":
+			healthHandler(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
-// main must be present but is empty — the wasip2 runtime dispatches HTTP requests.
+// main must be present but empty — Spin calls the registered handler via CGo export.
 func main() {}

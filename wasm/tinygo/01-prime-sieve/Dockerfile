@@ -1,8 +1,9 @@
-# Build stage: compile the Spin component (.wasm) using TinyGo's wasip2 target.
+# Build stage: compile the Spin component (.wasm) using TinyGo's wasip1 target.
 #
-# The wasip2 target generates a WASI Preview 2 Component Model binary.
-# Spin's TinyGo SDK provides the wasi:http/incoming-handler world bindings,
-# enabling spinhttp.Handle() to register the HTTP handler at the component level.
+# wasip1 is required: TinyGo's wasip2 target hardwires the wasi:cli/command world
+# and cannot export wasi:http/incoming-handler. The Spin Go SDK (spinframework/
+# spin-go-sdk/v2) uses CGo to export fermyon:spin/inbound-http instead, which Spin
+# accepts as a valid HTTP trigger interface.
 #
 # The resulting .wasm is pushed via `spin registry push` (NOT docker push).
 # containerd-shim-spin expects a Spin OCI artifact, not a standard Docker image.
@@ -14,7 +15,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN tinygo build -target=wasip2 -gc=conservative -opt=2 -o app.wasm .
+RUN tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 
 # ── Final image ───────────────────────────────────────────────────────────────
 # This scratch image is used only as a transport layer for the OCI artifact.

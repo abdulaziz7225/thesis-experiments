@@ -16,4 +16,4 @@ component = "prime-sieve"
 source = "app.wasm"
 
 [component.prime-sieve.build]
-command = "tinygo build -target=wasip2 -gc=conservative -opt=2 -o app.wasm ."
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
