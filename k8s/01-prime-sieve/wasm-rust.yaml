@@ -44,19 +44,23 @@ spec:
       cpu:    "500m"
       memory: "128Mi"
 ---
+# Separate NodePort service — SpinOperator owns the ClusterIP service named
+# prime-sieve-wasm-rust and reconciles any type change back to ClusterIP.
+# Use a distinct name so the operator does not manage this Service.
 apiVersion: v1
 kind: Service
 metadata:
-  name: prime-sieve-wasm-rust
+  name: prime-sieve-wasm-rust-np
   namespace: prime-sieve
   labels:
     variant: wasm-rust
     experiment: "01-prime-sieve"
 spec:
   type: NodePort
-  # SpinOperator labels the pods it creates with core.spinkube.dev/app = SpinApp name.
+  # SpinOperator (v0.6.1+) labels pods with core.spinkube.dev/app-name=<name> and
+  # uses a per-app status label as the service selector.
   selector:
-    core.spinkube.dev/app: prime-sieve-wasm-rust
+    core.spinkube.dev/app.prime-sieve-wasm-rust.status: ready
   ports:
     - port:       80
       targetPort: 80
