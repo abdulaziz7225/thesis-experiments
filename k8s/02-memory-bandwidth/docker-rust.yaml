@@ -1,0 +1,76 @@
+# Rust + Docker (OCI / runc) variant — 02-memory-bandwidth
+# NodePort: 30083  →  pod :8080
+#
+# Build & push:
+#   docker build -t docker.io/abdulaziz7225/memory-bandwidth-docker-rust:latest \
+#          docker/rust/02-memory-bandwidth/
+#   docker push docker.io/abdulaziz7225/memory-bandwidth-docker-rust:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-bandwidth-docker-rust
+  namespace: memory-bandwidth
+  labels:
+    app:     memory-bandwidth-docker-rust
+    variant: docker-rust
+    experiment: "02-memory-bandwidth"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-bandwidth-docker-rust
+  template:
+    metadata:
+      labels:
+        app:     memory-bandwidth-docker-rust
+        variant: docker-rust
+    spec:
+      containers:
+        - name:  memory-bandwidth-docker-rust
+          image: docker.io/abdulaziz7225/memory-bandwidth-docker-rust:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: TOKIO_WORKER_THREADS
+              value: "1"
+          resources:
+            requests:
+              cpu:    "250m"
+              memory: "64Mi"
+            limits:
+              cpu:    "500m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-bandwidth-docker-rust
+  namespace: memory-bandwidth
+  labels:
+    app:     memory-bandwidth-docker-rust
+    variant: docker-rust
+spec:
+  type: NodePort
+  selector:
+    app: memory-bandwidth-docker-rust
+  ports:
+    - port:       8080
+      targetPort: 8080
+      nodePort:   30083
+      name:       http

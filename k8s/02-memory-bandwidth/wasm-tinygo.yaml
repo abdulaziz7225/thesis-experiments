@@ -1,0 +1,48 @@
+# TinyGo + SpinKube (Wasmtime/Cranelift / wasip1) variant — 02-memory-bandwidth
+# NodePort: 30082  →  pod :80
+#
+# Build & push:
+#   cd wasm/tinygo/02-memory-bandwidth
+#   tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+#   spin registry push docker.io/abdulaziz7225/memory-bandwidth-wasm-tinygo:latest
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: memory-bandwidth-wasm-tinygo
+  namespace: memory-bandwidth
+  labels:
+    variant: wasm-tinygo
+    experiment: "02-memory-bandwidth"
+spec:
+  image: docker.io/abdulaziz7225/memory-bandwidth-wasm-tinygo:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "500m"
+      memory: "128Mi"
+---
+# Separate NodePort service — SpinOperator owns the ClusterIP service named
+# memory-bandwidth-wasm-tinygo. Use a distinct name so the operator does not manage this.
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-bandwidth-wasm-tinygo-np
+  namespace: memory-bandwidth
+  labels:
+    variant: wasm-tinygo
+    experiment: "02-memory-bandwidth"
+spec:
+  type: NodePort
+  # SpinOperator (v0.6.1+) uses a per-app status label as the service selector.
+  selector:
+    core.spinkube.dev/app.memory-bandwidth-wasm-tinygo.status: ready
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30082
+      name:       http

@@ -1,0 +1,54 @@
+# Rust + SpinKube (Wasmtime/Cranelift / WASI P2) variant — 02-memory-bandwidth
+# NodePort: 30081  →  pod :80  (same port as 01-prime-sieve/wasm-rust.yaml)
+#
+# SEQUENTIAL EXECUTION MODEL:
+#   Only one benchmark example may be active at a time.
+#   Before deploying this example, tear down the previous:
+#     kubectl delete namespace prime-sieve --ignore-not-found
+#     kubectl apply -f k8s/02-memory-bandwidth/
+#
+# Build & push:
+#   cd wasm/rust/02-memory-bandwidth
+#   cargo component build --release
+#   spin registry push docker.io/abdulaziz7225/memory-bandwidth-wasm-rust:latest
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: memory-bandwidth-wasm-rust
+  namespace: memory-bandwidth
+  labels:
+    variant: wasm-rust
+    experiment: "02-memory-bandwidth"
+spec:
+  image: docker.io/abdulaziz7225/memory-bandwidth-wasm-rust:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "500m"
+      memory: "128Mi"
+---
+# Separate NodePort service — SpinOperator owns the ClusterIP service named
+# memory-bandwidth-wasm-rust. Use a distinct name so the operator does not manage this.
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory-bandwidth-wasm-rust-np
+  namespace: memory-bandwidth
+  labels:
+    variant: wasm-rust
+    experiment: "02-memory-bandwidth"
+spec:
+  type: NodePort
+  # SpinOperator (v0.6.1+) uses a per-app status label as the service selector.
+  selector:
+    core.spinkube.dev/app.memory-bandwidth-wasm-rust.status: ready
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30081
+      name:       http
