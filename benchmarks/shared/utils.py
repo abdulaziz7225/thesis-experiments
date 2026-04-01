@@ -23,14 +23,14 @@ from typing import Any
 # Deploy only when ENABLE_WASMEDGE=true; see k8s/01-prime-sieve/optional/.
 VARIANTS: dict[str, int] = {
     "wasm-rust":     30081,   # SpinKube / WASI P2 / Wasmtime-Cranelift
-    "wasm-tinygo":   30082,   # SpinKube / WASI P2 / Wasmtime-Cranelift
+    "wasm-tinygo":   30082,   # SpinKube / wasip1 (fermyon:spin/inbound-http) / Wasmtime-Cranelift
     "docker-rust":   30083,
     "docker-golang": 30084,
 }
 
 VARIANT_LABELS: dict[str, str] = {
     "wasm-rust":     "Rust + Wasm (P2)",
-    "wasm-tinygo":   "TinyGo + Wasm (P2)",
+    "wasm-tinygo":   "TinyGo + Wasm (wasip1)",
     "docker-rust":   "Rust + Docker",
     "docker-golang": "Go + Docker",
 }
@@ -88,14 +88,22 @@ def scale_deployment(name: str, namespace: str, replicas: int) -> None:
 
 
 def scale_spinapp(name: str, namespace: str, replicas: int) -> None:
-    """Scale a SpinApp CRD. Must be used for Spin variants — the SpinOperator
-    reconciles any direct kubectl scale deployment back to spec.replicas."""
-    kubectl(
-        "patch", "spinapp", name,
-        "-n", namespace,
-        "--type=merge",
-        "-p", f'{{"spec":{{"replicas":{replicas}}}}}',
-    )
+    """Scale a SpinApp CRD.
+
+    SpinKube v0.6.1+ rejects replicas=0 via admission webhook ("replicas must be > 0").
+    For scale-to-zero (cold/warm start cycling), we scale the underlying Deployment
+    directly — the SpinOperator has no webhook constraint on Deployments. The operator
+    reconciles the Deployment back to spec.replicas automatically when we restore to 1.
+    """
+    if replicas == 0:
+        kubectl("scale", "deployment", name, "--replicas=0", "-n", namespace)
+    else:
+        kubectl(
+            "patch", "spinapp", name,
+            "-n", namespace,
+            "--type=merge",
+            "-p", f'{{"spec":{{"replicas":{replicas}}}}}',
+        )
 
 
 def scale_any(variant: str, name: str, namespace: str, replicas: int) -> None:

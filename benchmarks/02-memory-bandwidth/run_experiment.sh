@@ -1,40 +1,45 @@
 #!/usr/bin/env bash
 # ============================================================
-# run_experiment.sh – Orchestrate the full 01-prime-sieve run
+# run_experiment.sh – Orchestrate the full 02-memory-bandwidth run
 # ============================================================
+#
+# SEQUENTIAL EXECUTION MODEL:
+#   Only one benchmark example may be active at a time (shared NodePorts).
+#   This script tears down the previous example namespace (if any) and
+#   deploys 02-memory-bandwidth before running any measurements.
 #
 # USAGE:
 #   export THESIS_NODE_IP=<hetzner-server-ip>
 #   export KUBECONFIG=<path-to>/hetzner-thesis.yaml
 #   ./run_experiment.sh [--users 50] [--ramp 20s] [--duration 60s] \
-#                       [--limit 100000] [--cold-start-runs 6] [--no-list 1] \
+#                       [--size-kb 64] [--cold-start-runs 6] \
 #                       [--scaling-experiment limited|unlimited|both]
 #
 # WHAT IT DOES:
-#   1. Verifies all four primary variants are healthy (wasm-rust, wasm-tinygo, docker-rust, docker-golang).
+#   0. Tears down prime-sieve namespace; deploys 02-memory-bandwidth.
+#   1. Health checks all four variants.
 #   2. Runs k6 load tests sequentially (one variant at a time).
-#      After each run, queries Prometheus for memory/CPU metrics.
-#   3. Runs cold-start AND warm-start measurements (--mode both).
-#   4. Collects OCI image sizes via local docker inspect (falls back to manual prompt).
-#   5. Calls analyze.py to generate individual charts.
+#   3. Cold + warm start measurements.
+#   4. Collects OCI image sizes.
+#   5. Generates charts via analyze.py.
 #   (Optional) scaling-experiment: repeat steps 2-3 with unlimited threads/instances.
 #
-# OUTPUT: results/01-prime-sieve/
+# OUTPUT: results/02-memory-bandwidth/
 # ============================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESULTS_DIR="${SCRIPT_DIR}/../../results/01-prime-sieve"
+REPO_ROOT="${SCRIPT_DIR}/../.."
+RESULTS_DIR="${SCRIPT_DIR}/../../results/02-memory-bandwidth"
 mkdir -p "${RESULTS_DIR}"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 VUS=50
 RAMP="20s"
 DURATION="60s"
-SIEVE_LIMIT=100000
+SIZE_KB=64
 COLD_START_RUNS=6
-NO_LIST=1
 SCALING_EXP="limited"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
@@ -43,9 +48,8 @@ while [[ $# -gt 0 ]]; do
     --users)               VUS="$2";             shift 2 ;;
     --ramp)                RAMP="$2";            shift 2 ;;
     --duration)            DURATION="$2";        shift 2 ;;
-    --limit)               SIEVE_LIMIT="$2";     shift 2 ;;
+    --size-kb)             SIZE_KB="$2";         shift 2 ;;
     --cold-start-runs)     COLD_START_RUNS="$2"; shift 2 ;;
-    --no-list)             NO_LIST="$2";         shift 2 ;;
     --scaling-experiment)  SCALING_EXP="$2";     shift 2 ;;
     *) echo "Unknown arg: $1" && exit 1 ;;
   esac
@@ -55,14 +59,11 @@ done
 : "${THESIS_NODE_IP:?Set THESIS_NODE_IP to the Hetzner server public IP}"
 : "${KUBECONFIG:?Set KUBECONFIG to the path of hetzner-thesis.yaml}"
 
-command -v k6      >/dev/null || { echo "k6 not found – run 'make setup-local' in thesis-infra-setup/"; exit 1; }
+command -v k6      >/dev/null || { echo "k6 not found"; exit 1; }
 command -v python3 >/dev/null || { echo "python3 not found"; exit 1; }
 command -v kubectl >/dev/null || { echo "kubectl not found"; exit 1; }
 
-# ── Variant map: name → NodePort ─────────────────────────────────────────────
-# Primary 4-variant matrix:
-#   Wasm (WASI P2 / Wasmtime-Cranelift via SpinKube): 30081-30082 (pod port 80)
-#   Docker (runc/native):                             30083-30084 (pod port 8080)
+# ── Variant map ───────────────────────────────────────────────────────────────
 declare -A PORTS=(
   ["wasm-rust"]=30081
   ["wasm-tinygo"]=30082
@@ -70,7 +71,7 @@ declare -A PORTS=(
   ["docker-golang"]=30084
 )
 
-# ── Helper: wait for HTTP health ──────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 wait_healthy() {
   local url="$1"
   local tries=0
@@ -87,7 +88,23 @@ wait_healthy() {
   echo " OK"
 }
 
-# ── Step 1: Pre-flight health check ──────────────────────────────────────────
+# ── Step 0: Sequential deployment ─────────────────────────────────────────────
+echo ""
+echo "══════════════════════════════════════════"
+echo "  Step 0: Sequential deployment"
+echo "══════════════════════════════════════════"
+
+echo "  Tearing down previous example (prime-sieve) if running..."
+kubectl delete namespace prime-sieve --ignore-not-found=true || true
+
+echo "  Deploying 02-memory-bandwidth manifests..."
+kubectl apply -f "${REPO_ROOT}/k8s/02-memory-bandwidth/namespace.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/02-memory-bandwidth/"
+echo "  Waiting for pods to be ready (60 s)..."
+sleep 30
+kubectl wait --for=condition=Ready pods --all -n memory-bandwidth --timeout=120s || true
+
+# ── Step 1: Health checks ─────────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Step 1: Health checks"
@@ -95,7 +112,7 @@ echo "════════════════════════�
 for variant in wasm-rust wasm-tinygo docker-rust docker-golang; do
   port="${PORTS[$variant]}"
   url="http://${THESIS_NODE_IP}:${port}"
-  wait_healthy "${url}" || { echo "  WARN: ${variant} is not healthy – skipping"; }
+  wait_healthy "${url}"
 done
 
 # ── Run k6 + Prometheus for a given scaling mode ──────────────────────────────
@@ -111,12 +128,7 @@ run_load_tests() {
     url="http://${THESIS_NODE_IP}:${port}"
     echo "  Running k6 for ${variant} (port ${port})..."
 
-    # Collect idle/baseline memory before the load test.
-    python3 "${SCRIPT_DIR}/prometheus_metrics.py" \
-      --variant "${variant}" \
-      --idle-only 2>&1 | sed 's/^/    /' || echo "  WARN: Prometheus query failed (continuing)"
-
-    START_TS=$(date +%s)
+    load_start=$(date +%s)
 
     k6 run \
       --env BASE_URL="${url}" \
@@ -124,19 +136,19 @@ run_load_tests() {
       --env VUS="${VUS}" \
       --env RAMP="${RAMP}" \
       --env DURATION="${DURATION}" \
-      --env SIEVE_LIMIT="${SIEVE_LIMIT}" \
-      --env NO_LIST="${NO_LIST}" \
+      --env SIZE_KB="${SIZE_KB}" \
+      --env NO_HASH="0" \
       --summary-export="${results_subdir}/${variant}_summary.json" \
       --out "json=${results_subdir}/${variant}_k6.json" \
       "${SCRIPT_DIR}/k6-load-test.js" \
       2>&1 | tail -20
 
-    END_TS=$(date +%s)
+    load_end=$(date +%s)
 
     python3 "${SCRIPT_DIR}/prometheus_metrics.py" \
       --variant "${variant}" \
-      --start "${START_TS}" \
-      --end   "${END_TS}" \
+      --start "${load_start}" \
+      --end   "${load_end}"   \
       2>&1 | sed 's/^/    /' || echo "  WARN: Prometheus query failed (continuing)"
   done
 }
@@ -145,14 +157,14 @@ apply_thread_limits() {
   echo "  Applying single-thread constraints..."
   for variant in docker-rust docker-golang; do
     if [[ "${variant}" == "docker-rust" ]]; then
-      kubectl set env deployment/prime-sieve-docker-rust TOKIO_WORKER_THREADS=1 -n prime-sieve
+      kubectl set env deployment/memory-bandwidth-docker-rust TOKIO_WORKER_THREADS=1 -n memory-bandwidth
     else
-      kubectl set env deployment/prime-sieve-docker-golang GOMAXPROCS=1 -n prime-sieve
+      kubectl set env deployment/memory-bandwidth-docker-golang GOMAXPROCS=1 -n memory-bandwidth
     fi
   done
   for variant in wasm-rust wasm-tinygo; do
-    local name="prime-sieve-${variant}"
-    kubectl patch spinapp "${name}" -n prime-sieve --type=merge \
+    local name="memory-bandwidth-${variant}"
+    kubectl patch spinapp "${name}" -n memory-bandwidth --type=merge \
       -p '{"spec":{"replicas":1}}' 2>/dev/null || true
   done
   sleep 10
@@ -162,14 +174,14 @@ apply_unlimited_threads() {
   echo "  Removing thread constraints (unlimited mode)..."
   for variant in docker-rust docker-golang; do
     if [[ "${variant}" == "docker-rust" ]]; then
-      kubectl set env deployment/prime-sieve-docker-rust TOKIO_WORKER_THREADS=2 -n prime-sieve
+      kubectl set env deployment/memory-bandwidth-docker-rust TOKIO_WORKER_THREADS=2 -n memory-bandwidth
     else
-      kubectl set env deployment/prime-sieve-docker-golang GOMAXPROCS=2 -n prime-sieve
+      kubectl set env deployment/memory-bandwidth-docker-golang GOMAXPROCS=2 -n memory-bandwidth
     fi
   done
   for variant in wasm-rust wasm-tinygo; do
-    local name="prime-sieve-${variant}"
-    kubectl patch spinapp "${name}" -n prime-sieve --type=merge \
+    local name="memory-bandwidth-${variant}"
+    kubectl patch spinapp "${name}" -n memory-bandwidth --type=merge \
       -p '{"spec":{"replicas":4}}' 2>/dev/null || true
   done
   sleep 15
@@ -179,7 +191,6 @@ apply_unlimited_threads() {
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Step 2: Load tests"
-echo "  vus=${VUS}  duration=${DURATION}  sieve-limit=${SIEVE_LIMIT}"
 echo "══════════════════════════════════════════"
 
 if [[ "${SCALING_EXP}" == "limited" || "${SCALING_EXP}" == "both" ]]; then
@@ -194,45 +205,42 @@ if [[ "${SCALING_EXP}" == "unlimited" || "${SCALING_EXP}" == "both" ]]; then
   apply_thread_limits
 fi
 
-# ── Step 3: Cold-start + warm-start measurements ──────────────────────────────
+# ── Step 3: Cold + warm start ─────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Step 3: Cold-start + warm-start measurements"
-echo "  total cycles per variant: ${COLD_START_RUNS}"
-echo "  (run 1 = cold, runs 2-${COLD_START_RUNS} = warm)"
+echo "  Step 3: Cold + warm start"
 echo "══════════════════════════════════════════"
-
 python3 "${SCRIPT_DIR}/cold_start.py" \
   --runs "${COLD_START_RUNS}" \
-  --mode both
+  --mode both \
+  2>&1 | sed 's/^/    /'
 
-# ── Step 4: OCI image sizes ───────────────────────────────────────────────────
-IMAGE_SIZES_FILE="${RESULTS_DIR}/image_sizes.json"
+# ── Step 4: Image sizes ───────────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Step 4: OCI image sizes"
+echo "  Step 4: Image sizes"
 echo "══════════════════════════════════════════"
 
+IMAGE_SIZES_FILE="${RESULTS_DIR}/image_sizes.json"
 if [[ ! -f "${IMAGE_SIZES_FILE}" ]]; then
   if command -v docker >/dev/null 2>&1; then
-    echo "  Reading local image sizes via docker inspect …"
+    echo "  Reading local image sizes…"
     python3 - "${IMAGE_SIZES_FILE}" <<'PYEOF'
 import json, subprocess, sys, os
 
 out_path = sys.argv[1]
 
 docker_images = {
-    "docker.io/abdulaziz7225/prime-sieve-docker-rust:latest":   "docker-rust",
-    "docker.io/abdulaziz7225/prime-sieve-docker-golang:latest": "docker-golang",
+    "docker.io/abdulaziz7225/memory-bandwidth-docker-rust:latest":   "docker-rust",
+    "docker.io/abdulaziz7225/memory-bandwidth-docker-golang:latest": "docker-golang",
 }
 
 spin_wasm_paths = {
-    "wasm-rust":   "wasm/rust/01-prime-sieve/target/wasm32-wasip1/release/prime_sieve_spin.wasm",
-    "wasm-tinygo": "wasm/tinygo/01-prime-sieve/app.wasm",
+    "wasm-rust":   "wasm/rust/02-memory-bandwidth/target/wasm32-wasip1/release/memory_bandwidth_spin.wasm",
+    "wasm-tinygo": "wasm/tinygo/02-memory-bandwidth/app.wasm",
 }
 
 sizes = {}
-
 for image, variant in docker_images.items():
     result = subprocess.run(
         ["docker", "inspect", "--format={{.Size}}", image],
@@ -241,8 +249,8 @@ for image, variant in docker_images.items():
     if result.returncode == 0 and result.stdout.strip():
         sizes[variant] = round(int(result.stdout.strip()) / 1_048_576, 2)
 
-# out_path is <repo_root>/results/01-prime-sieve/image_sizes.json
-# dirname → <repo_root>/results/01-prime-sieve  →  ../..  →  <repo_root>
+# out_path is <repo_root>/results/02-memory-bandwidth/image_sizes.json
+# dirname → <repo_root>/results/02-memory-bandwidth  →  ../..  →  <repo_root>
 repo_root = os.path.abspath(os.path.join(os.path.dirname(out_path), "../.."))
 for variant, rel_path in spin_wasm_paths.items():
     wasm_path = os.path.join(repo_root, rel_path)
@@ -266,21 +274,11 @@ PYEOF
   fi
 fi
 
-if [[ ! -f "${IMAGE_SIZES_FILE}" ]]; then
-  echo ""
-  echo "  Could not collect image sizes automatically."
-  echo "  For Docker variants: docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}' | grep prime-sieve"
-  echo "  For Spin variants: du -sh wasm/rust/01-prime-sieve/target/wasm32-wasip1/release/prime_sieve_spin.wasm"
-  echo "                     du -sh wasm/tinygo/01-prime-sieve/app.wasm"
-  echo '  Then create: {"wasm-rust":<MB>,"wasm-tinygo":<MB>,"docker-rust":<MB>,"docker-golang":<MB>}'
-fi
-
 # ── Step 5: Generate charts ───────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Step 5: Generating charts"
 echo "══════════════════════════════════════════"
-
 for mode in limited unlimited; do
   if [[ "${SCALING_EXP}" == "${mode}" || "${SCALING_EXP}" == "both" ]]; then
     python3 "${SCRIPT_DIR}/analyze.py" --mode "${mode}" \
@@ -290,8 +288,3 @@ done
 
 echo ""
 echo "Done!  Results in ${RESULTS_DIR}/"
-echo "  limited/   or unlimited/  – per-variant k6 summaries"
-echo "  cold_start.json           – cold-start timings (run 1)"
-echo "  warm_start.json           – warm-start timings (runs 2+)"
-echo "  resource_metrics.json     – memory + CPU from Prometheus"
-echo "  image_sizes.json          – OCI image sizes"
