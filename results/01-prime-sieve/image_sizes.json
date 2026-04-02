@@ -1,6 +1,6 @@
 {
-  "wasm-rust": 0.13,
-  "wasm-tinygo": 2.26,
   "docker-rust": 2.08,
-  "docker-golang": 6.0
+  "docker-golang": 5.99,
+  "wasm-rust": 0.19,
+  "wasm-tinygo": 2.11
 }
