@@ -17,11 +17,12 @@
 #
 # WHAT IT DOES:
 #   0. Tears down prime-sieve namespace; deploys 02-memory-bandwidth.
-#   1. Health checks all four variants.
+#   1. Verifies all four primary variants are healthy (wasm-rust, wasm-tinygo, docker-rust, docker-golang).
 #   2. Runs k6 load tests sequentially (one variant at a time).
-#   3. Cold + warm start measurements.
-#   4. Collects OCI image sizes.
-#   5. Generates charts via analyze.py.
+#      After each run, queries Prometheus for memory/CPU metrics.
+#   3. Runs cold-start AND warm-start measurements (--mode both).
+#   4. Collects OCI image sizes via local docker inspect (falls back to manual prompt).
+#   5. Calls analyze.py to generate individual charts.
 #   (Optional) scaling-experiment: repeat steps 2-3 with unlimited threads/instances.
 #
 # OUTPUT: results/02-memory-bandwidth/
@@ -59,11 +60,14 @@ done
 : "${THESIS_NODE_IP:?Set THESIS_NODE_IP to the Hetzner server public IP}"
 : "${KUBECONFIG:?Set KUBECONFIG to the path of hetzner-thesis.yaml}"
 
-command -v k6      >/dev/null || { echo "k6 not found"; exit 1; }
+command -v k6      >/dev/null || { echo "k6 not found – run 'make setup-local' in thesis-infra-setup/"; exit 1; }
 command -v python3 >/dev/null || { echo "python3 not found"; exit 1; }
 command -v kubectl >/dev/null || { echo "kubectl not found"; exit 1; }
 
-# ── Variant map ───────────────────────────────────────────────────────────────
+# ── Variant map: name → NodePort ─────────────────────────────────────────────
+# Primary 4-variant matrix:
+#   Wasm (WASI P2 / Wasmtime-Cranelift via SpinKube): 30081-30082 (pod port 80)
+#   Docker (runc/native):                             30083-30084 (pod port 8080)
 declare -A PORTS=(
   ["wasm-rust"]=30081
   ["wasm-tinygo"]=30082
@@ -71,7 +75,7 @@ declare -A PORTS=(
   ["docker-golang"]=30084
 )
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helper: wait for HTTP health ──────────────────────────────────────────────
 wait_healthy() {
   local url="$1"
   local tries=0
@@ -112,7 +116,7 @@ echo "════════════════════════�
 for variant in wasm-rust wasm-tinygo docker-rust docker-golang; do
   port="${PORTS[$variant]}"
   url="http://${THESIS_NODE_IP}:${port}"
-  wait_healthy "${url}"
+  wait_healthy "${url}" || { echo "  WARN: ${variant} is not healthy – skipping"; }
 done
 
 # ── Run k6 + Prometheus for a given scaling mode ──────────────────────────────
@@ -128,7 +132,12 @@ run_load_tests() {
     url="http://${THESIS_NODE_IP}:${port}"
     echo "  Running k6 for ${variant} (port ${port})..."
 
-    load_start=$(date +%s)
+    # Collect idle/baseline memory before the load test.
+    python3 "${SCRIPT_DIR}/prometheus_metrics.py" \
+      --variant "${variant}" \
+      --idle-only 2>&1 | sed 's/^/    /' || echo "  WARN: Prometheus query failed (continuing)"
+
+    START_TS=$(date +%s)
 
     k6 run \
       --env BASE_URL="${url}" \
@@ -143,12 +152,12 @@ run_load_tests() {
       "${SCRIPT_DIR}/k6-load-test.js" \
       2>&1 | tail -20
 
-    load_end=$(date +%s)
+    END_TS=$(date +%s)
 
     python3 "${SCRIPT_DIR}/prometheus_metrics.py" \
       --variant "${variant}" \
-      --start "${load_start}" \
-      --end   "${load_end}"   \
+      --start "${START_TS}" \
+      --end   "${END_TS}" \
       2>&1 | sed 's/^/    /' || echo "  WARN: Prometheus query failed (continuing)"
   done
 }
@@ -191,6 +200,7 @@ apply_unlimited_threads() {
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Step 2: Load tests"
+echo "  vus=${VUS}  duration=${DURATION}  size-kb=${SIZE_KB}"
 echo "══════════════════════════════════════════"
 
 if [[ "${SCALING_EXP}" == "limited" || "${SCALING_EXP}" == "both" ]]; then
@@ -205,26 +215,28 @@ if [[ "${SCALING_EXP}" == "unlimited" || "${SCALING_EXP}" == "both" ]]; then
   apply_thread_limits
 fi
 
-# ── Step 3: Cold + warm start ─────────────────────────────────────────────────
+# ── Step 3: Cold-start + warm-start measurements ──────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Step 3: Cold + warm start"
+echo "  Step 3: Cold-start + warm-start measurements"
+echo "  total cycles per variant: ${COLD_START_RUNS}"
+echo "  (run 1 = cold, runs 2-${COLD_START_RUNS} = warm)"
 echo "══════════════════════════════════════════"
+
 python3 "${SCRIPT_DIR}/cold_start.py" \
   --runs "${COLD_START_RUNS}" \
-  --mode both \
-  2>&1 | sed 's/^/    /'
+  --mode both
 
-# ── Step 4: Image sizes ───────────────────────────────────────────────────────
+# ── Step 4: OCI image sizes ───────────────────────────────────────────────────
+IMAGE_SIZES_FILE="${RESULTS_DIR}/image_sizes.json"
 echo ""
 echo "══════════════════════════════════════════"
-echo "  Step 4: Image sizes"
+echo "  Step 4: OCI image sizes"
 echo "══════════════════════════════════════════"
 
-IMAGE_SIZES_FILE="${RESULTS_DIR}/image_sizes.json"
 if [[ ! -f "${IMAGE_SIZES_FILE}" ]]; then
   if command -v docker >/dev/null 2>&1; then
-    echo "  Reading local image sizes…"
+    echo "  Reading local image sizes via docker inspect …"
     python3 - "${IMAGE_SIZES_FILE}" <<'PYEOF'
 import json, subprocess, sys, os
 
@@ -241,6 +253,7 @@ spin_wasm_paths = {
 }
 
 sizes = {}
+
 for image, variant in docker_images.items():
     result = subprocess.run(
         ["docker", "inspect", "--format={{.Size}}", image],
@@ -274,11 +287,21 @@ PYEOF
   fi
 fi
 
+if [[ ! -f "${IMAGE_SIZES_FILE}" ]]; then
+  echo ""
+  echo "  Could not collect image sizes automatically."
+  echo "  For Docker variants: docker images --format '{{.Repository}}:{{.Tag}}\t{{.Size}}' | grep memory-bandwidth"
+  echo "  For Spin variants: du -sh wasm/rust/02-memory-bandwidth/target/wasm32-wasip1/release/memory_bandwidth_spin.wasm"
+  echo "                     du -sh wasm/tinygo/02-memory-bandwidth/app.wasm"
+  echo '  Then create: {"wasm-rust":<MB>,"wasm-tinygo":<MB>,"docker-rust":<MB>,"docker-golang":<MB>}'
+fi
+
 # ── Step 5: Generate charts ───────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
 echo "  Step 5: Generating charts"
 echo "══════════════════════════════════════════"
+
 for mode in limited unlimited; do
   if [[ "${SCALING_EXP}" == "${mode}" || "${SCALING_EXP}" == "both" ]]; then
     python3 "${SCRIPT_DIR}/analyze.py" --mode "${mode}" \
@@ -288,3 +311,8 @@ done
 
 echo ""
 echo "Done!  Results in ${RESULTS_DIR}/"
+echo "  limited/   or unlimited/  – per-variant k6 summaries"
+echo "  cold_start.json           – cold-start timings (run 1)"
+echo "  warm_start.json           – warm-start timings (runs 2+)"
+echo "  resource_metrics.json     – memory + CPU from Prometheus"
+echo "  image_sizes.json          – OCI image sizes"

@@ -67,9 +67,12 @@ def _k6_metric(summary: dict, metric: str, stat: str, scale: float = 1.0) -> flo
 
 def plot_image_sizes(sizes: dict, out_dir: Path) -> None:
     vals  = [sizes.get(v, 0) for v in ORDERED_VARIANTS]
+    xs = np.arange(len(ORDERED_VARIANTS))
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(LABELS, vals, color=COLORS, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(xs, vals, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.2f MB", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Image / artifact size (MB)")
     ax.set_title("02-memory-bandwidth: OCI Artifact Size")
     fig.tight_layout()
@@ -83,9 +86,12 @@ def plot_throughput(summaries: dict[str, dict], out_dir: Path) -> None:
         (_k6_metric(summaries[v], "http_reqs", "rate") or 0.0) if v in summaries else 0.0
         for v in ORDERED_VARIANTS
     ]
+    xs = np.arange(len(ORDERED_VARIANTS))
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(LABELS, rps_vals, color=COLORS, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(xs, rps_vals, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.1f RPS", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Requests per second (RPS)")
     ax.set_title("02-memory-bandwidth: Throughput at 50 VUs")
     fig.tight_layout()
@@ -107,7 +113,7 @@ def plot_latency(summaries: dict[str, dict], out_dir: Path) -> None:
         ax.bar(x + i * width, vals, width, label=f"p{pct.replace('(','').replace(')','').replace('med','50')}",
                color=[c + "aa" for c in COLORS] if i > 0 else COLORS)
     ax.set_xticks(x + width)
-    ax.set_xticklabels(LABELS)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Latency (ms)")
     ax.set_title("02-memory-bandwidth: End-to-end Latency Distribution")
     ax.legend()
@@ -123,9 +129,12 @@ def plot_error_rate(summaries: dict[str, dict], out_dir: Path) -> None:
         if v in summaries else 0.0
         for v in ORDERED_VARIANTS
     ]
+    xs = np.arange(len(ORDERED_VARIANTS))
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(LABELS, rates, color=COLORS, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(xs, rates, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.1f%%", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("HTTP failure rate (%)")
     ax.set_title("02-memory-bandwidth: Error Rate at 50 VUs")
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
@@ -141,9 +150,12 @@ def plot_cold_start(cold_data: list, out_dir: Path) -> None:
         by_variant[v]["runs_ms"][0] if v in by_variant and by_variant[v]["runs_ms"] else 0.0
         for v in ORDERED_VARIANTS
     ]
+    xs = np.arange(len(ORDERED_VARIANTS))
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(LABELS, vals, color=COLORS, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(xs, vals, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.0f ms", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Cold-start latency (ms)")
     ax.set_title("02-memory-bandwidth: Cold-Start Latency (includes image pull)")
     fig.tight_layout()
@@ -158,9 +170,12 @@ def plot_warm_start(warm_data: list, out_dir: Path) -> None:
         by_variant[v]["stats"]["median_ms"] if v in by_variant and by_variant[v]["stats"] else 0.0
         for v in ORDERED_VARIANTS
     ]
+    xs = np.arange(len(ORDERED_VARIANTS))
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(LABELS, medians, color=COLORS, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(xs, medians, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.0f ms", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Warm-start median latency (ms)")
     ax.set_title("02-memory-bandwidth: Warm-Start Latency (median, N=5)")
     fig.tight_layout()
@@ -179,7 +194,7 @@ def plot_memory(resource_data: list, out_dir: Path) -> None:
     ax.bar(x - width/2, [v or 0 for v in idle], width, label="Idle RSS", color=COLORS, alpha=0.7)
     ax.bar(x + width/2, [v or 0 for v in peak], width, label="Peak RSS", color=COLORS)
     ax.set_xticks(x)
-    ax.set_xticklabels(LABELS)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Memory RSS (MB)")
     ax.set_title("02-memory-bandwidth: Memory RSS (idle and peak)")
     ax.legend()
