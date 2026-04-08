@@ -30,7 +30,7 @@ TinyGo 0.28 refactored `net/http` to require an explicit `machine.Netdev` driver
 For the `wasip1` target, no driver is auto-registered, so any call into `net/http`
 fails with `"server error: Netdev not set"`.
 
-### Why not WASI Preview 2?
+### Why not WASI Preview 2 (P2)?
 
 WasmEdge 0.14.x does not implement the WASI P2 Component Model
 (`wasi:http/proxy`, `wasi:sockets/tcp`). Its P2 support
@@ -61,7 +61,7 @@ no goroutine scheduler is involved in the accept loop.
 
 This mirrors the finding documented for `wasm/rust`: **both** WASM variants
 are forced into a single-threaded, sequential request-handling model by the
-constraints of WasmEdge's WASI P1 socket extension. WASI P1 exposes no
+constraints of WasmEdge's WASI Preview 1 (P1) socket extension. WASI P1 exposes no
 `epoll`/`io_uring`/`kqueue` primitives, making async I/O impossible regardless
 of the source language's native concurrency model.
 

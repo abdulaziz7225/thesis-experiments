@@ -14,14 +14,14 @@ All other variants in this experiment use a mature async HTTP framework:
 ### Why no async HTTP for wasm/rust?
 
 The Rust async ecosystem is built on top of OS primitives (epoll, kqueue, io_uring) that
-WASI Preview 1 does not expose. This creates a fundamental gap:
+WASI Preview 1 (P1) does not expose. This creates a fundamental gap:
 
 - **tokio** — requires OS-level async I/O; does not compile to `wasm32-wasip1`.
 - **hyper_wasi / tokio_wasi** — WasmEdge-maintained forks of hyper 0.14 / tokio 1.x that
   replace OS networking with WasmEdge's proprietary WASI socket extension. These crates
   are unmaintained as of 2025 and can no longer be reliably resolved from crates.io.
 - **axum, warp, actix-web** — all depend on tokio; same limitation applies.
-- **WASI Preview 2 (wasi:http)** — defines a proper async HTTP interface via the Component
+- **WASI Preview 2 (P2) (wasi:http)** — defines a proper async HTTP interface via the Component
   Model, but WasmEdge's support is still experimental, and the Rust toolchain for P2
   components (`wasm32-wasip2` + `cargo-component`) is not yet stable enough for production
   benchmarking as of this writing.

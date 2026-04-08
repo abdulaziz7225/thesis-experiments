@@ -2,22 +2,23 @@
 
 ## Thesis Context
 
-This document records the research and reasoning behind the choice of **WasmEdge** as the
-WebAssembly runtime for the experiment comparing Docker (OCI/runc) containers against
-WebAssembly workloads in a Kubernetes cluster.
+This document records the reasoning behind the choice of **SpinKube (Wasmtime/Cranelift)**
+as the primary WebAssembly runtime for the experiment comparing Docker (OCI/runc) containers
+against WebAssembly workloads in a Kubernetes cluster.
 
-The experiment deploys four variants of the same HTTP microservice benchmark:
+The experiment deploys four primary variants of the same HTTP microservice benchmark:
 
-| Variant | Runtime | K8s runtimeClassName |
-|---|---|---|
-| `docker/rust` | runc (default OCI) | *(none — cluster default)* |
-| `docker/golang` | runc (default OCI) | *(none — cluster default)* |
-| `wasm/rust` | WasmEdge via runwasi | `wasmedge` |
-| `wasm/tinygo` | WasmEdge via runwasi | `wasmedge` |
+| Variant | Runtime | WASI | K8s runtimeClassName |
+|---|---|---|---|
+| `docker-rust` | runc (native) | — | *(none — cluster default)* |
+| `docker-golang` | runc (native) | — | *(none — cluster default)* |
+| `wasm-rust` | Wasmtime/Cranelift (via Spin) | Preview 2 | `wasmtime-spin` |
+| `wasm-tinygo` | Wasmtime/Cranelift (via Spin) | Preview 2 | `wasmtime-spin` |
 
-All WASM pods use the OCI image annotation `module.wasm.image/variant: compat-smart`,
-which instructs WasmEdge's containerd shim to auto-detect the module type and execution
-mode.
+Optional WasmEdge/WASI Preview 1 (P1) archive variants (`wasmedge-rust`, `wasmedge-tinygo`) are available
+in `wasm/wasmedge/` and `k8s/01-prime-sieve/optional/`. Deploy them by setting
+`ENABLE_WASMEDGE=true` in `thesis-infra-setup`. Their results are discussed in the
+thesis as Appendix B.
 
 ---
 
@@ -29,14 +30,13 @@ following hard constraints:
 1. **Kubernetes containerd shim**: must integrate with Kubernetes via a RuntimeClass and a
    `containerd-shim-*` binary so that WASM pods are deployed identically to Docker pods
    from the Kubernetes control plane's perspective.
-2. **Long-running TCP server model**: the WASM module must own the listen/accept loop
-   (equivalent to a traditional microservice). Runtimes that impose a per-request
-   instantiation model (FaaS/handler style) are architecturally incomparable to
-   long-running Docker containers and were therefore excluded.
+2. **Functional HTTP handling**: the WASM module must serve HTTP requests. The execution
+   model (persistent server vs. request-handler) is an experiment variable, not a disqualifier,
+   provided the framework overhead is isolated and documented.
 3. **Rust support**: must execute a Rust binary compiled to a WASM target with functional
-   TCP networking (`std::net::TcpListener`).
-4. **TinyGo support**: must execute a TinyGo-compiled binary with functional `net/http`
-   server behaviour.
+   HTTP serving.
+4. **TinyGo support**: must execute a TinyGo-compiled binary with functional HTTP serving,
+   enabling a Go-family language comparison with the `docker-golang` baseline.
 5. **Sufficient community and maintenance**: must be actively maintained and credible enough
    for academic citation.
 
@@ -51,31 +51,18 @@ following hard constraints:
 - **Stars / Contributors**: ~10,500 stars / 215+ contributors (as of early 2026)
 - **Latest release**: v0.16.1 (January 2026); active monthly release cadence
 - **Corporate backing**: Second State, Microsoft (Docker shim contributions)
-- **Kubernetes shim**: `io.containerd.wasmedge.v1` — part of the containerd/runwasi
-  project, shim v0.6.0 released May 2025
-- **WASI Preview 1**: Full support, including a proprietary POSIX-socket extension
-  (`sock_accept`, `sock_listen`, `sock_bind`, etc.) introduced in WasmEdge v0.8.2 — before
-  WASI formally standardised sockets. This extension is what enables `std::net::TcpListener`
-  in Rust and `net/http` in TinyGo to function inside a WASM module.
-- **WASI Preview 2**: Incomplete. The Component Model parser exists but the validator and
+- **Kubernetes shim**: `io.containerd.wasmedge.v1` — part of the containerd/runwasi project
+- **WASI P1**: Full support, including a proprietary POSIX-socket extension
+  (`sock_accept`, `sock_listen`, `sock_bind`, etc.) introduced in WasmEdge v0.8.2. This
+  extension enables `std::net::TcpListener` in Rust and `net/http` in TinyGo to function
+  inside a WASM module via a WasmEdge-specific ABI.
+- **WASI Preview 2 (P2)**: Incomplete. The Component Model parser exists but the validator and
   executor are still being implemented (GitHub issue #4236, active as of early 2026).
   `wasm32-wasip2` modules cannot run on WasmEdge in production.
 
-**Constraint satisfaction**:
-
-| Criterion | Satisfied? |
-|---|---|
-| K8s containerd shim | Yes |
-| Long-running TCP server | Yes (via WasmEdge socket extension) |
-| Rust wasm32-wasip1 | Yes |
-| TinyGo wasip1 net/http | Yes (via WasmEdge socket extension) |
-| Active maintenance | Yes |
-
-**Assessment**: The only runtime that satisfies all five constraints simultaneously.
-The proprietary socket extension is a deliberate design choice by the WasmEdge team to
-make cloud-native networking possible while WASI's own sockets specification was still being
-finalised. The downside is that modules using this extension are not portable to other
-runtimes — a trade-off explicitly noted as a thesis finding.
+**Assessment**: WasmEdge satisfies all five constraints for WASI P1, but its WASI P2 gap
+and proprietary socket ABI make it the legacy path rather than the current ecosystem
+direction. It is retained as an optional reference comparison (Appendix B).
 
 ---
 
@@ -86,44 +73,17 @@ runtimes — a trade-off explicitly noted as a thesis finding.
 - **Repository**: github.com/bytecodealliance/wasmtime
 - **Stars / Contributors**: ~17,700 stars / 672 contributors (largest community of all
   evaluated runtimes)
-- **Latest release**: v42.0.1 (February 2026); monthly major releases (Semantic
-  Versioning — v1 through v42 in ~3 years)
+- **Latest release**: v42.0.1 (February 2026); monthly major releases
 - **Corporate backing**: Bytecode Alliance member organisations (neutral non-profit)
 - **Kubernetes shim**: `io.containerd.wasmtime.v1` — part of containerd/runwasi
-- **WASI Preview 1**: Full support
-- **WASI Preview 2**: Full support — Wasmtime is the **reference implementation** of
+- **WASI P1**: Full support
+- **WASI P2**: Full support — Wasmtime is the **reference implementation** of
   WASI 0.2. Includes production-ready `wasi:sockets/tcp@0.2.0` and `wasi:http/proxy@0.2.0`.
-  `wasm32-wasip2` Rust binaries with `std::net::TcpListener` run correctly on Wasmtime 17+
-  via the standardised `wasi:sockets` interface.
 
-**Constraint satisfaction**:
-
-| Criterion | Satisfied? |
-|---|---|
-| K8s containerd shim | Yes |
-| Long-running TCP server (Rust wasip2) | Yes |
-| Rust wasm32-wasip1 | Yes |
-| TinyGo wasip1 net/http (TCP server) | No — TinyGo `net/http` server does not work on Wasmtime without WasmEdge's proprietary socket ABI |
-| Active maintenance | Yes (most active of all runtimes) |
-
-**Why not chosen**: Wasmtime does not support TinyGo's `net/http` TCP server model.
-TinyGo's standard library `net` package, when targeting `wasip1`, relies on the WasmEdge
-socket extension ABI. This extension is absent in Wasmtime, which implements only the
-standardised WASI socket syscalls. Switching to Wasmtime would require abandoning the
-TinyGo variant or rewriting it against a different networking API — eliminating one of the
-two WASM languages from the comparison. The benchmark's language-agnostic coverage
-(Rust and Go) was deemed more valuable than runtime standardisation.
-
-Additionally, `wasm32-wasip2` + Wasmtime for Rust is viable but requires the Component
-Model adapter toolchain (`wasm-tools`, `wit-bindgen`, `cargo-component`), which would
-introduce substantial build complexity for no comparative benefit given the TinyGo
-constraint.
-
-**Wasmtime as a thesis finding**: Wasmtime's Bytecode Alliance governance model (neutral
-non-profit, broad corporate membership) and its role as the WASI 0.2 reference
-implementation make it the most academically credible runtime for long-term reference.
-This is noted in the thesis discussion as the direction WASM microservices should evolve
-toward once TinyGo's wasip2 networking story matures.
+**Role in this thesis**: Wasmtime is the JIT engine embedded inside Fermyon Spin. When this
+thesis deploys SpinKube, it is deploying Wasmtime/Cranelift directly — Spin is the WASI
+framework layer on top of it. Wasmtime's Bytecode Alliance governance model (neutral non-profit,
+broad corporate membership) provides strong academic credibility for the chosen runtime stack.
 
 ---
 
@@ -131,118 +91,88 @@ toward once TinyGo's wasip2 networking story matures.
 
 - **Maintainer**: Wasmer Inc. (commercial company)
 - **Repository**: github.com/wasmerio/wasmer
-- **Stars / Contributors**: ~20,500 stars (highest of all runtimes) / large fork count
-- **Latest release**: v7.x (active as of early 2026)
-- **Corporate backing**: Wasmer Inc. (VC-backed); revenue model via Wasmer Cloud platform
-- **Kubernetes shim**: `io.containerd.wasmer.v1` — present in containerd/runwasi
-- **WASI Preview 1**: Supported
-- **WASI Preview 2**: Partial — Wasmer's primary differentiator is **WASIX**, a proprietary
-  POSIX superset that extends WASM with full POSIX compatibility (threads, fork, sockets,
-  etc.) outside of the WASI standard. WASIX is Wasmer-only; binaries using it are not
-  portable to Wasmtime or WasmEdge.
-- **TinyGo net/http**: Theoretically possible via WASIX socket support, but WASIX is not
-  compatible with TinyGo's wasip1 socket extension ABI.
+- **Stars / Contributors**: ~20,500 stars (highest of all runtimes)
+- **Corporate backing**: Wasmer Inc. (VC-backed)
+- **WASI P2**: Partial — Wasmer's primary differentiator is **WASIX**, a proprietary
+  POSIX superset outside of the WASI standard. WASIX is not portable to Wasmtime or WasmEdge.
 
 **Why not chosen**:
 
 1. **Proprietary lock-in**: WASIX is a Wasmer Inc. invention not endorsed by the Bytecode
-   Alliance or the W3C WebAssembly Working Group. Benchmarking results obtained on WASIX
-   would be non-portable and would weaken the thesis's generalisability.
-2. **TinyGo compatibility**: the same gap as Wasmtime — WASIX is not TinyGo's socket ABI.
-3. **Commercial conflict of interest**: Wasmer's primary incentive is to drive adoption of
-   Wasmer Cloud. Academic benchmarks should prefer runtimes governed by neutral bodies
-   (Bytecode Alliance, CNCF) where possible.
-4. **Star count misleading**: Wasmer's ~20,500 stars are partly attributable to early
-   positioning as the first user-friendly WASM runtime (circa 2019) rather than current
-   production adoption in the cloud-native Kubernetes ecosystem.
+   Alliance or the W3C WebAssembly Working Group. Results on WASIX are not portable.
+2. **Commercial conflict of interest**: Wasmer's primary incentive is Wasmer Cloud adoption.
+   Academic benchmarks should prefer runtimes governed by neutral bodies.
 
 ---
 
 ### 4. WAMR (WebAssembly Micro Runtime)
 
-- **Maintainer**: Bytecode Alliance; primary contributor: Intel (43% of PRs); also Amazon,
-  Midokura, Xiaomi, SECO
+- **Maintainer**: Bytecode Alliance; primary contributor: Intel
 - **Repository**: github.com/bytecodealliance/wasm-micro-runtime
-- **Stars / Contributors**: ~5,800 stars / 212+ contributors
-- **Latest release**: WAMR-2.4.4 (November 2025); 707 PRs merged in 2024 alone
-- **Corporate backing**: Intel (primary), Amazon Web Services
 - **Kubernetes shim**: **None** — GitHub issue #337 to add WAMR to containerd/runwasi is
-  open and unmerged as of early 2026
-- **WASI Preview 1**: Full support
-- **WASI Preview 2**: Partial
-- **Design target**: IoT, embedded systems, Trusted Execution Environments (TEE), and
-  bare-metal edge deployments. WAMR supports compilation ahead-of-time (AOT) for
-  resource-constrained environments.
+  open and unmerged as of early 2026.
+- **Design target**: IoT, embedded systems, Trusted Execution Environments.
 
-**Why not chosen**: The absence of a containerd shim is a hard disqualifier. Without a
-Kubernetes RuntimeClass integration, WASM pods cannot be deployed via the standard
-Kubernetes pod scheduling mechanism. WAMR is an excellent runtime for its intended
-embedded/IoT context but is not a cloud-native Kubernetes runtime. There is no path
-to make WAMR comparable to a Docker container at the pod level without a custom
-containerd shim.
+**Why not chosen**: The absence of a containerd shim is a hard disqualifier. WAMR cannot
+create pod-level Kubernetes workloads comparable to Docker containers.
 
 ---
 
 ### 5. wazero
 
-- **Maintainer**: Tetrate (CNCF ecosystem company); used by Docker Engine, Envoy proxy,
-  and several Go-native projects
+- **Maintainer**: Tetrate
 - **Repository**: github.com/tetratelabs/wazero
-- **Stars / Contributors**: ~6,000 stars / 316+ forks / used by 5,200+ projects
-- **Latest release**: v1.11.0 (December 2025)
-- **Corporate backing**: Tetrate
-- **Kubernetes shim**: **None** — wazero is an embeddable Go library, not a standalone
-  runtime. It has no containerd shim and cannot serve as a Kubernetes RuntimeClass.
-- **WASI Preview 1**: Full support (as an embedded library)
-- **WASI Preview 2**: In progress (GitHub issue #2289, unresolved)
+- **Kubernetes shim**: **None** — wazero is an embeddable Go library, not a standalone runtime.
 
-**Why not chosen**: wazero is architecturally incompatible with the thesis experiment.
-It is a library that Go applications embed to execute WASM modules — it is not a
-standalone container runtime. While wazero runs inside Docker Engine itself, it cannot
-replace Docker Engine as the pod-level runtime in Kubernetes. There is no mechanism to
-schedule a wazero-executed WASM module as a Kubernetes pod comparable to a Docker
-container.
+**Why not chosen**: wazero is architecturally incompatible — it is a library embedded inside
+Go applications. It cannot replace a pod-level container runtime in Kubernetes.
 
 ---
 
 ### 6. Spin / SpinKube
 
-- **Maintainer**: Fermyon Technologies; SpinKube donated to CNCF (Sandbox, March 2024)
+- **Maintainer**: Fermyon Technologies; SpinKube donated to CNCF (Sandbox, January 2025)
 - **Repository**: github.com/spinframework/spin + github.com/spinkube
-- **Stars**: Well-established across spinframework and SpinKube repositories
 - **Corporate backing**: Fermyon, Microsoft, SUSE, Liquid Reply
-- **Underlying runtime**: Wasmtime (Spin uses Wasmtime internally)
-- **Kubernetes shim**: `io.containerd.spin.v2` — `containerd-shim-spin` (built on
-  runwasi library); Spin Operator (CNCF Sandbox) provides a higher-level CRD-based
-  deployment model
-- **WASI Preview 2**: Full support (via Wasmtime); SpinKube was an early adopter of
-  `wasi:http/proxy@0.2.0`
+- **Underlying runtime**: **Wasmtime (Cranelift JIT)** — NOT WasmEdge.
+  This is a critical distinction: Spin embeds Wasmtime directly. When comparing SpinKube vs.
+  the optional WasmEdge variants, two variables change simultaneously: WASI version and JIT
+  backend. Both are documented as confounding variables in the thesis.
+- **Kubernetes shim**: `io.containerd.spin.v2` — `containerd-shim-spin-v2` implements the
+  containerd shim v2 protocol and embeds Spin (which embeds Wasmtime). The SpinOperator
+  (CNCF Sandbox) manages Spin workloads via the `SpinApp` CRD.
+- **WASI P2**: Full support via Wasmtime; `wasi:http/incoming-handler@0.2.0`
 
-**Why not chosen — the execution model disqualifier**:
+**Execution model**: Spin uses the `wasi:http/incoming-handler` model — Spin owns the TCP
+listener and HTTP parsing; for each incoming request it calls the component's `handle` export.
+This is the standardised WASI P2 HTTP interface; every mature WASI P2 HTTP framework uses it.
 
-Spin uses the **`wasi:http/proxy` handler model**: the runtime (Spin) owns the TCP
-listener and HTTP parsing layer. For each incoming HTTP request, Spin instantiates a
-fresh WASM component, calls its `handle` export, and discards the instance after the
-response. This is architecturally equivalent to CGI (Common Gateway Interface) or
-AWS Lambda — a new process per request.
+**Why SpinKube is the primary choice**:
 
-Docker containers, by contrast, run as **persistent long-running processes** that own
-their listener loop from startup through shutdown. The pod starts once, binds a port,
-and handles thousands of requests within the same process lifetime.
+1. **WASI P2 is the current ecosystem direction** — `wasi:http/incoming-handler` is the
+   standardised interface in WASI 0.2. The P1 socket workarounds (WasmEdge-specific ABI,
+   `wasmedge_wasi_socket` crate, `//go:wasmimport` socket calls) are legacy paths that no
+   longer reflect the production WASM ecosystem. The thesis should benchmark the current state.
 
-Benchmarking a Spin component against a Docker container would measure fundamentally
-different things:
-- **Spin**: per-request WASM instantiation cost + handler execution time
-- **Docker**: amortised server startup cost + handler execution time
+2. **Standard library support** — With SpinKube:
+   - Rust: `#[http_component]` macro via `spin-sdk = "3"` targeting `wasm32-wasip2`. No custom TCP loop.
+   - TinyGo: `spinhttp.Handle()` via `github.com/spinframework/spin-go-sdk/v2` targeting `wasip1`.
+     **No `server.go`, no `serveWasmEdge()`, no `//go:wasmimport` socket wiring.** TinyGo's
+     `wasip2` target hardwires the `wasi:cli/command` world and cannot export
+     `wasi:http/incoming-handler`; the Spin Go SDK's CGo layer exports `fermyon:spin/inbound-http`
+     instead, which Spin accepts as a valid HTTP trigger interface.
 
-The cold-start penalty, memory footprint, and CPU usage would all be influenced by
-the instantiation model, not purely by the container/WASM runtime overhead. Such a
-comparison would not be scientifically valid for the thesis research question.
+3. **Bytecode Alliance runtime** — Wasmtime (inside Spin) is the Bytecode Alliance reference
+   implementation of WASI 0.2, with the broadest community and most rigorous standards
+   compliance. This provides stronger academic credibility than WasmEdge's proprietary ABI.
 
-SpinKube is therefore the most ecosystem-advanced WASM Kubernetes platform today, but
-it answers a different research question: "how does a FaaS/serverless WASM deployment
-compare to Docker?" — not the thesis question of "how do persistent WASM microservices
-compare to Docker containers?"
+4. **CNCF Sandbox governance** — SpinKube accepted to CNCF Sandbox in January 2025; the same
+   CNCF tier as WasmEdge. Both are equally citable in an academic context.
+
+5. **`max_instances = 1` for resource fairness** — The supervisor requires that all variants
+   operate within the same resource capacity. Setting `max_instances = 1` in `spin.toml` caps
+   concurrent Wasm instances to 1, matching the single-thread constraint imposed on all variants
+   (GOMAXPROCS=1 for docker-golang, TOKIO_WORKER_THREADS=1 for docker-rust).
 
 ---
 
@@ -250,102 +180,108 @@ compare to Docker containers?"
 
 - **Maintainer**: wasmCloud project; CNCF Incubating (November 2024)
 - **Underlying runtime**: Wasmtime
-- **Design**: Distributed WASM application orchestration across clouds, Kubernetes, and
-  edge nodes via a capability-provider model (`wasi:http`, `wasi:messaging`,
-  `wasi:blobstore`). Not a pod-level container runtime.
+- **Design**: Distributed WASM application orchestration across clouds via a NATS message bus.
 
-**Why not chosen**: wasmCloud operates as a platform layer above Kubernetes, not as a
-containerd shim. It does not create workloads comparable to Kubernetes pods for the
-purposes of a Docker vs WASM pod-level benchmark.
+**Why not chosen over SpinKube**:
+
+1. **NATS overhead** — WasmCloud routes every request through a NATS message bus, adding a
+   network hop that contaminates latency measurements beyond the Wasm vs Docker question.
+2. **Platform-level integration** — WasmCloud operates above Kubernetes, not at the pod level.
+   SpinKube's containerd shim (`containerd-shim-spin-v2`) integrates at the same level as runc,
+   making the comparison semantics directly equivalent.
 
 ---
 
 ## Summary Comparison
 
-| Runtime | K8s shim | Long-running TCP | Rust wasip1 | TinyGo net/http | WASI P2 stable | Governance | Verdict |
+| Runtime | K8s shim | HTTP model | Rust wasip2 | TinyGo wasip1 (SDK) | WASI P2 | Governance | Verdict |
 |---|---|---|---|---|---|---|---|
-| **WasmEdge** | Yes | Yes | Yes | Yes | No (in progress) | CNCF Sandbox | **Selected** |
-| Wasmtime | Yes | Yes (wasip2) | Yes | No | Yes | Bytecode Alliance | TinyGo gap |
-| Wasmer | Yes | Yes (WASIX) | Yes | No | Partial | Commercial | Proprietary lock-in |
-| WAMR | No | No | Limited | No | Partial | Bytecode Alliance | No K8s shim |
-| wazero | No | No | N/A | N/A | In progress | Tetrate | Embedded lib only |
-| Spin/SpinKube | Yes | No (FaaS model) | Handler only | Handler only | Yes | CNCF Sandbox | Wrong exec model |
-| wasmCloud | No (platform) | N/A | N/A | N/A | Yes | CNCF Incubating | Platform layer |
+| **Spin/SpinKube** | Yes | wasi:http handler | Yes | Yes (via Spin Go SDK) | Yes | CNCF Sandbox | **Selected (primary)** |
+| WasmEdge | Yes | Persistent TCP (P1 only) | No (in progress) | No (P2) | Partial | CNCF Sandbox | Optional comparison (Appendix B) |
+| Wasmtime (bare) | Yes | N/A | Yes | No (P1 gap) | Yes | Bytecode Alliance | Embedded in Spin |
+| Wasmer | Yes | WASIX | Yes | No | Partial | Commercial | Proprietary lock-in |
+| WAMR | No | — | Limited | No | Partial | Bytecode Alliance | No K8s shim |
+| wazero | No | — | N/A | N/A | In progress | Tetrate | Embedded lib only |
+| wasmCloud | No (platform) | NATS-routed | Yes | Yes | Yes | CNCF Incubating | NATS overhead |
 
 ---
 
-## Decision: WasmEdge
+## Decision: SpinKube/Wasmtime (WASI P2)
 
-WasmEdge is chosen as the sole WASM runtime for the following reasons, ranked by weight:
+SpinKube (Wasmtime/Cranelift as JIT, WASI P2) is chosen as the primary WebAssembly
+runtime for the following reasons:
 
-**1. It is the only runtime that satisfies all hard constraints simultaneously.**
-No other evaluated runtime provides a Kubernetes containerd shim, a long-running TCP
-server model, functional Rust `std::net::TcpListener`, *and* functional TinyGo
-`net/http` server behaviour in the same package. This combination is non-negotiable for
-the experiment's design: both WASM variants must behave as persistent microservices
-comparable to their Docker counterparts.
+1. **It is the current production-ready WASI ecosystem** — WASI P2 (`wasi:http/incoming-handler`,
+   Component Model, WIT interfaces) is not experimental as of 2025/2026. SpinKube v0.4.0 and
+   containerd-shim-spin v0.17.0 are stable releases deployed in production.
 
-**2. CNCF Sandbox governance provides academic credibility.**
-Unlike Wasmer (commercial) or proprietary extensions (WASIX), WasmEdge is governed
-under the Cloud Native Computing Foundation, the same body that governs Kubernetes,
-containerd, Prometheus, and other foundational cloud-native infrastructure. Results
-obtained on a CNCF project are more defensible in an academic context than results on
-a commercially-controlled runtime.
+2. **Eliminates all WASI P1 workarounds** — No `wasmedge_wasi_socket` Rust crate, no
+   `//go:wasmimport` custom socket directives, no `serveWasmEdge()` TinyGo function. Both
+   the Rust and TinyGo implementations become straightforward framework code.
 
-**3. Proprietary socket extension is a documented, deliberate choice — not a workaround.**
-WasmEdge's POSIX socket extension predates the WASI 0.2 sockets specification and was
-instrumental in proving that WASM could serve as a network-capable microservice runtime.
-The extension's non-portability is explicitly noted as a thesis finding: it illustrates
-the ecosystem maturity gap that WASI Preview 2 is designed to close.
+3. **Bytecode Alliance reference runtime** — Wasmtime (inside Spin) is the most widely
+   used and best-maintained WASM runtime, governed by the neutral Bytecode Alliance.
 
-**4. The TinyGo constraint is binding and eliminates Wasmtime.**
-Wasmtime is the more standards-compliant and community-backed runtime (672 vs 215
-contributors; Bytecode Alliance vs single company). If the thesis used only Rust, the
-argument for Wasmtime + `wasm32-wasip2` would be strong. However, cross-language
-coverage (Rust + Go) is a core experimental dimension — Go in the cloud-native space
-is the dominant microservice language, and its WASM story (via TinyGo) must be
-evaluated. This constraint forces the choice to WasmEdge.
+4. **CNCF Sandbox legitimacy** — SpinKube's January 2025 CNCF Sandbox acceptance is on
+   par with WasmEdge's governance tier; both are equally valid academic references.
 
-**5. WasmEdge's WASI P2 trajectory is a thesis finding, not a disqualifier.**
-The fact that WasmEdge's WASI P2 Component Model implementation is incomplete as of
-early 2026 is itself data for the thesis: it demonstrates that WASM runtime maturity in
-Kubernetes is uneven, and that the migration path from WASI P1 (proprietary socket
-extensions) to WASI P2 (standardised `wasi:sockets`) is a real, ongoing engineering
-challenge — not a solved problem. This finding strengthens the thesis's contribution
-by grounding it in the current state of the ecosystem rather than an idealised future.
+### Why WasmEdge is Now Optional (Not Primary)
+
+WasmEdge's WASI P1 variants are retained as Appendix B comparison material for the following
+reasons:
+
+- **Historical context**: The P1 implementation documents the ecosystem constraints that existed
+  before WASI P2 matured — the `wasmedge_wasi_socket` dependency, the broken TinyGo `net/http`
+  server, the single-threaded accept-loop bottleneck. These findings remain valuable for
+  understanding why WASI P2 was needed.
+- **Concurrency bottleneck data**: The WASI P1 results (24 RPS throughput ceiling vs Docker's
+  ~500 RPS) quantify the cost of the single-threaded WasmEdge socket ABI. This provides a
+  concrete before/after comparison when WASI P2 results become available.
+- **Not the current state**: Benchmarking WasmEdge WASI P1 as the *primary* Wasm result would
+  misrepresent the current WASM-on-Kubernetes ecosystem. A thesis written in 2025/2026 should
+  benchmark the current production path.
+
+To deploy the optional WasmEdge variants:
+
+```bash
+# In thesis-infra-setup:
+ENABLE_WASMEDGE=true bash cloud-init.sh
+make label-node-wasmedge
+make deploy-wasmedge
+
+# In thesis-experiments:
+kubectl apply -f k8s/01-prime-sieve/optional/wasm-rust.yaml
+kubectl apply -f k8s/01-prime-sieve/optional/wasm-tinygo.yaml
+```
 
 ---
 
 ## WASI P1 vs WASI P2: Practical Difference for This Experiment
 
-| Aspect | WASI Preview 1 (current) | WASI Preview 2 (future) |
+| Aspect | WASI P1 (WasmEdge) | WASI P2 (SpinKube) |
 |---|---|---|
-| Binary format | Core WebAssembly module | Component Model (different format) |
+| Binary format | Core WebAssembly module | Component Model (different binary format) |
 | Sockets | WasmEdge proprietary extension | `wasi:sockets/tcp@0.2.0` (standardised) |
-| HTTP | Not in spec (raw TCP) | `wasi:http/proxy@0.2.0` (handler model) |
-| Portability | WasmEdge-only for TCP servers | Wasmtime, and eventually WasmEdge |
+| HTTP | Not in spec (raw TCP loop) | `wasi:http/incoming-handler@0.2.0` |
+| Portability | WasmEdge-only | Wasmtime, Spin, all WASI P2 runtimes |
 | Rust target | `wasm32-wasip1` | `wasm32-wasip2` (Rust Tier 2 since v1.82) |
-| TinyGo target | `-target=wasip1` | `-target=wasip2` (experimental in TinyGo 0.40) |
-| K8s deployment | Stable (runwasi v0.6.0) | Not yet stable on WasmEdge |
-
-The thesis uses WASI Preview 1 throughout. The limitations this imposes — proprietary
-socket ABI, runtime lock-in, single-threaded Rust HTTP server — are documented as
-findings that characterise WASM's current maturity level as a microservice platform,
-not as experimental flaws to be corrected before the benchmark is run.
+| TinyGo target | `-target=wasip1` + WasmEdge ABI | `-target=wasip1` + Spin Go SDK (wasip2 hardwires cli:command world) |
+| K8s deployment | crun v1.22 + libwasmedge.so (optional) | containerd-shim-spin v0.17.0 (primary) |
+| JIT backend | WasmEdge / LLVM | Wasmtime / Cranelift |
+| Experiment role | Optional (Appendix B) | **Primary comparison** |
 
 ---
 
 ## References
 
-- WasmEdge GitHub: https://github.com/WasmEdge/WasmEdge
-- Wasmtime GitHub: https://github.com/bytecodealliance/wasmtime
-- containerd/runwasi: https://github.com/containerd/runwasi
-- WASI Sockets Specification: https://github.com/WebAssembly/wasi-sockets
-- Bytecode Alliance — WASI 0.2 Launch: https://bytecodealliance.org/articles/WASI-0.2
-- SpinKube CNCF Sandbox: https://www.spinkube.dev/
-- Rust Blog — wasm32-wasip2 Tier 2: https://blog.rust-lang.org/2024/11/26/wasip2-tier-2.html
-- CNCF — WebAssembly on Kubernetes (Part 1): https://www.cncf.io/blog/2024/03/12/webassembly-on-kubernetes-from-containers-to-wasm-part-01/
-- CNCF — WebAssembly on Kubernetes (Part 2): https://www.cncf.io/blog/2024/03/28/webassembly-on-kubernetes-the-practice-guide-part-02/
-- wasmCloud CNCF Incubating: https://www.cncf.io/blog/2024/11/12/cncf-welcomes-wasmcloud-to-the-cncf-incubator/
-- Fermyon — Introducing SpinKube: https://www.fermyon.com/blog/introducing-spinkube-fermyon-platform-for-k8s
-- Docker WASM deprecation: https://docs.docker.com/desktop/features/wasm/
+- [SpinKube CNCF Sandbox](https://www.spinkube.dev/)
+- [Wasmtime (Bytecode Alliance)](https://github.com/bytecodealliance/wasmtime)
+- [Fermyon Spin SDK (Rust)](https://github.com/spinframework/spin-rust-sdk)
+- [Fermyon Spin SDK (Go)](https://github.com/spinframework/spin-go-sdk)
+- [WASI 0.2 Launch — Bytecode Alliance](https://bytecodealliance.org/articles/WASI-0.2)
+- [Rust wasm32-wasip2 Tier 2 announcement](https://blog.rust-lang.org/2024/11/26/wasip2-tier-2.html)
+- [SpinKube / spin-operator](https://github.com/spinkube/spin-operator)
+- [containerd-shim-spin](https://github.com/spinframework/containerd-shim-spin)
+- [WasmEdge GitHub (optional reference)](https://github.com/WasmEdge/WasmEdge)
+- [CNCF — WebAssembly on Kubernetes](https://www.cncf.io/blog/2024/03/12/webassembly-on-kubernetes-from-containers-to-wasm-part-01/)
+- [wasmCloud CNCF Incubating](https://www.cncf.io/blog/2024/11/12/cncf-welcomes-wasmcloud-to-the-cncf-incubator/)
