@@ -12,7 +12,7 @@ FROM rust:1.86 AS builder
 # Install cargo-component for WASI P2 Component Model builds.
 RUN cargo install cargo-component --locked
 
-# Add the WASI P1 target (cargo-component builds P1 modules that Spin adapts to P2).
+# Add the wasip1 target (cargo-component builds wasip1 modules that Spin adapts to WASI P2).
 RUN rustup target add wasm32-wasip1
 
 WORKDIR /app

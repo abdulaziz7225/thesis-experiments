@@ -29,27 +29,22 @@ thesis-experiments/
 │   ├── rust/
 │   │   ├── 01-prime-sieve/       # Spin/Rust (WASI P2 component): Sieve
 │   │   └── 02-memory-bandwidth/          # Spin/Rust (WASI P2 component): I/O + SHA-256
-│   ├── tinygo/
-│   │   ├── 01-prime-sieve/       # Spin/TinyGo (wasip1): Sieve
-│   │   └── 02-memory-bandwidth/          # Spin/TinyGo (wasip1): I/O + SHA-256
-│   └── wasmedge/                 # Optional WASI Preview 1 (P1) variants (see Appendix B)
-│       ├── rust/01-prime-sieve/
-│       └── tinygo/01-prime-sieve/
+│   └── tinygo/
+│       ├── 01-prime-sieve/       # Spin/TinyGo (wasip1): Sieve
+│       └── 02-memory-bandwidth/          # Spin/TinyGo (wasip1): I/O + SHA-256
 ├── k8s/
 │   ├── 01-prime-sieve/           # K8s manifests (namespace: prime-sieve)
 │   │   ├── namespace.yaml
 │   │   ├── wasm-rust.yaml        # SpinApp CRD, nodePort 30081
 │   │   ├── wasm-tinygo.yaml      # SpinApp CRD, nodePort 30082
 │   │   ├── docker-rust.yaml      # Deployment + Service, nodePort 30083
-│   │   ├── docker-golang.yaml    # Deployment + Service, nodePort 30084
-│   │   └── optional/             # WasmEdge variants (30085-30086)
+│   │   └── docker-golang.yaml    # Deployment + Service, nodePort 30084
 │   └── 02-memory-bandwidth/              # K8s manifests (namespace: memory-bandwidth)
 │       ├── namespace.yaml
 │       ├── wasm-rust.yaml        # nodePort 30081
 │       ├── wasm-tinygo.yaml      # nodePort 30082
 │       ├── docker-rust.yaml      # nodePort 30083
-│       ├── docker-golang.yaml    # nodePort 30084
-│       └── optional/
+│       └── docker-golang.yaml    # nodePort 30084
 ├── benchmarks/
 │   ├── shared/utils.py           # Shared helpers (VARIANTS, VARIANT_LABELS, Prometheus, kubectl)
 │   ├── 01-prime-sieve/           # k6 load tests + analysis for prime-sieve
@@ -192,10 +187,10 @@ make up
 make configure
 
 # 3. Label the node so the SpinKube RuntimeClass can schedule pods
-make label-node
+make label
 
 # 4. Deploy cert-manager, SpinOperator, Prometheus, Grafana
-make deploy-stack
+make deploy
 
 # 5. Smoke-test: verifies Spin/Wasmtime can run a SpinApp at all
 make test
@@ -378,22 +373,3 @@ make teardown
 | TinyGo (Spin)               | 0.40.1        | Dockerfile / local | `-target=wasip1`; wasip2 hardwires wasi:cli/command world  |
 | spin-sdk (Rust)             | 5.2.0         | Cargo.toml         | `#[http_component]` macro for WASI P2 HTTP handlers        |
 | spin-go-sdk (TinyGo)        | v2.2.1        | go.mod             | Official Spin Go SDK; exports fermyon:spin/inbound-http    |
-
----
-
-## Optional: WasmEdge (WASI P1) comparison
-
-WasmEdge variants run at ports 30085–30086 and require `ENABLE_WASMEDGE=true` during provisioning.
-See `k8s/01-prime-sieve/optional/` for manifests and Appendix B of the thesis report for
-benchmark results and the motivation for switching to SpinKube as the primary runtime.
-
-```bash
-# Provision with WasmEdge support
-ENABLE_WASMEDGE=true make up   # in thesis-infra-setup/
-
-# Label node for WasmEdge
-make label-node-wasmedge
-
-# Deploy optional variants
-kubectl apply -f k8s/01-prime-sieve/optional/
-```

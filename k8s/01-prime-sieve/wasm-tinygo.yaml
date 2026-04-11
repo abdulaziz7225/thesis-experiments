@@ -2,9 +2,9 @@
 # NodePort: 30082  →  pod :80
 #
 # Prerequisites:
-#   1. SpinOperator is deployed (make deploy-stack in thesis-infra-setup)
-#   2. RuntimeClass "wasmtime-spin" exists (make deploy-stack)
-#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label-node)
+#   1. SpinOperator is deployed (make deploy in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label)
 #   4. Image is built and pushed via spin registry push (NOT docker push):
 #        cd wasm/tinygo/01-prime-sieve
 #        tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .

@@ -15,12 +15,9 @@ from typing import Any
 # Maps short variant name → NodePort on the Hetzner server.
 # Update NODE_IP via environment variable THESIS_NODE_IP.
 #
-# Primary variants (4-variant experiment matrix):
+# 4-variant experiment matrix:
 #   Wasm (Wasmtime/Cranelift, SpinKube) : wasm-rust, wasm-tinygo    ports 30081-30082
 #   Docker  (runc/native)               : docker-rust, docker-golang ports 30083-30084
-#
-# Optional WasmEdge/WASI P1 comparison variants occupy ports 30085-30086.
-# Deploy only when ENABLE_WASMEDGE=true; see k8s/01-prime-sieve/optional/.
 VARIANTS: dict[str, int] = {
     "wasm-rust":     30081,   # SpinKube / WASI P2 / Wasmtime-Cranelift
     "wasm-tinygo":   30082,   # SpinKube / wasip1 (fermyon:spin/inbound-http) / Wasmtime-Cranelift

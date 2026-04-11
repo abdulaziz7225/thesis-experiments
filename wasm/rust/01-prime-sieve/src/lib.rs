@@ -4,12 +4,10 @@
 // Push:   spin registry push docker.io/abdulaziz7225/prime-sieve-wasm-rust:latest
 // Deploy: kubectl apply -f k8s/01-prime-sieve/wasm-rust.yaml
 //
-// Key differences from wasm/wasmedge/rust/01-prime-sieve (WASI P1 archive):
-//   - Runtime:  Wasmtime/Cranelift (via Spin)  vs  WasmEdge/LLVM
-//   - WASI:     Preview 2 (Component Model)    vs  Preview 1 (snapshot_preview1)
-//   - HTTP:     wasi:http/incoming-handler      vs  wasmedge_wasi_socket TCP loop
-//   - Threading: request-scoped, no server loop vs  single-threaded accept() loop
-//   - runtime field in JSON: "wasm-rust"
+// Runtime:    Wasmtime/Cranelift (via Spin)
+// WASI:       Preview 2 (Component Model)
+// HTTP:       wasi:http/incoming-handler — Spin owns the listener; this component
+//             exports a single handler function invoked once per request.
 
 use spin_sdk::http::{IncomingRequest, Response};
 use spin_sdk::http_component;
@@ -111,7 +109,8 @@ fn health_handler() -> Response {
 // ── Entry point ───────────────────────────────────────────────────────────────
 // #[http_component] is invoked once per HTTP request by Spin's Wasmtime host.
 // No server loop — Spin's HTTP trigger handles accept()/dispatch.
-// max_instances = 1 in spin.toml caps concurrency to match WASI P1 single-thread constraint.
+// max_instances = 1 in spin.toml caps concurrency to a single Wasm instance,
+// matching the single-thread constraints on the Docker variants (GOMAXPROCS=1, TOKIO_WORKER_THREADS=1).
 #[http_component]
 fn handle(req: IncomingRequest) -> Response {
     let path_with_query = req.path_with_query().unwrap_or_default();
