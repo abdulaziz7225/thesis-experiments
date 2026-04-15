@@ -1,7 +1,7 @@
 # Master Thesis Experiments
 
 Benchmark experiments comparing Docker vs. WebAssembly microservice runtimes.
-Four variants of each benchmark workload are deployed to a k3s cluster and load-tested.
+Four variants of each benchmark workload are deployed to a Kubernetes cluster (kubeadm) and load-tested.
 
 **Primary 4-variant matrix (all using the same NodePorts):**
 
@@ -180,7 +180,7 @@ These steps live in `../thesis-infra-setup/` and must be completed **before** de
 ```bash
 cd ../thesis-infra-setup
 
-# 1. Provision the Hetzner VM (Terraform + cloud-init: k3s + SpinKube)
+# 1. Provision the Hetzner VM (Terraform + cloud-init: kubeadm + SpinKube)
 make up
 
 # 2. Wait for cloud-init and fetch kubeconfig (~5-8 min)
@@ -213,6 +213,13 @@ kubectl apply -f k8s/01-prime-sieve/
 
 # Watch until all pods reach Ready (30-90 s)
 kubectl get pods -n prime-sieve -w
+
+# Deploy 02-memory-bandwidth
+kubectl apply -f k8s/02-memory-bandwidth/namespace.yaml
+kubectl apply -f k8s/02-memory-bandwidth/
+
+# Watch until all pods reach Ready (30-90 s)
+kubectl get pods -n memory-bandwidth -w
 ```
 
 Expected steady state:
@@ -361,7 +368,7 @@ make teardown
 
 | Component                   | Version       | Pinned?            | Notes                                                      |
 | --------------------------- | ------------- | ------------------ | ---------------------------------------------------------- |
-| k3s                         | v1.35.2+k3s1  | cloud-init.sh      | Latest stable                                              |
+| Kubernetes (kubeadm)        | v1.34.x       | cloud-init.sh      | Upstream reference platform; Flannel CNI                   |
 | containerd-shim-spin-v2     | v0.17.0       | cloud-init.sh      | SpinKube Wasm shim (Wasmtime/Cranelift)                    |
 | SpinOperator                | v0.6.1        | Makefile (Helm)    | Manages SpinApp CRDs; requires cert-manager                |
 | cert-manager                | v1.16.3       | Makefile (Helm)    | Prerequisite for SpinOperator webhooks                     |
