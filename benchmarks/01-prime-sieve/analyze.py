@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -215,6 +216,7 @@ def plot_rps_over_time(ax: Axes,
     ax.set_title("Throughput over time", fontweight="bold")
     ax.legend(fontsize=9)
     ax.xaxis.set_tick_params(rotation=30)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b, %H:%M"))
 
 
 def _startup_panel(ax: Axes, data: list[dict], title: str, ylabel: str) -> None:

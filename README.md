@@ -328,6 +328,9 @@ results/01-prime-sieve/
 ```bash
 python3 benchmarks/01-prime-sieve/analyze.py --mode limited
 python3 benchmarks/01-prime-sieve/analyze.py --mode unlimited
+
+python3 benchmarks/02-memory-bandwidth/analyze.py --mode limited
+python3 benchmarks/02-memory-bandwidth/analyze.py --mode unlimited
 ```
 
 ---
