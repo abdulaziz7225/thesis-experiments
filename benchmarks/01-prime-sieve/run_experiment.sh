@@ -61,7 +61,7 @@ command -v kubectl >/dev/null || { echo "kubectl not found"; exit 1; }
 
 # ── Variant map: name → NodePort ─────────────────────────────────────────────
 # Primary 4-variant matrix:
-#   Wasm (WASI P2 / Wasmtime-Cranelift via SpinKube): 30081-30082 (pod port 80)
+#   Wasm (SpinKube / Wasmtime-Cranelift): 30081-30082 (pod port 80)
 #   Docker (runc/native):                             30083-30084 (pod port 8080)
 declare -A PORTS=(
   ["wasm-rust"]=30081
@@ -162,9 +162,9 @@ apply_unlimited_threads() {
   echo "  Removing thread constraints (unlimited mode)..."
   for variant in docker-rust docker-golang; do
     if [[ "${variant}" == "docker-rust" ]]; then
-      kubectl set env deployment/prime-sieve-docker-rust TOKIO_WORKER_THREADS=2 -n prime-sieve
+      kubectl set env deployment/prime-sieve-docker-rust TOKIO_WORKER_THREADS=4 -n prime-sieve
     else
-      kubectl set env deployment/prime-sieve-docker-golang GOMAXPROCS=2 -n prime-sieve
+      kubectl set env deployment/prime-sieve-docker-golang GOMAXPROCS=4 -n prime-sieve
     fi
   done
   for variant in wasm-rust wasm-tinygo; do

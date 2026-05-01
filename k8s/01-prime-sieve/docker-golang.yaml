@@ -32,10 +32,9 @@ spec:
           ports:
             - containerPort: 8080
               name: http
-          # Limit Go's scheduler to 1 OS thread so the comparison measures
-          # runtime overhead rather than parallelism.  The WASI P2 variants are
-          # architecturally single-threaded; this env var levels the playing field
-          # for the Docker variants.
+          # Default to 1 OS thread for the limited-mode baseline;
+          # run_experiment.sh::apply_unlimited_threads raises this to 4 at
+          # runtime for the unlimited-mode load test (matches the 4-vCPU ccx23).
           env:
             - name: GOMAXPROCS
               value: "1"
@@ -44,7 +43,7 @@ spec:
               cpu:    "250m"
               memory: "64Mi"
             limits:
-              cpu:    "500m"
+              cpu:    "4000m"
               memory: "128Mi"
           livenessProbe:
             httpGet:

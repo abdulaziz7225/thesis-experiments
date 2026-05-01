@@ -1,4 +1,4 @@
-# TinyGo + SpinKube (Wasmtime/Cranelift / wasip1) variant — 02-memory-bandwidth
+# TinyGo + SpinKube (Wasmtime/Cranelift / WASI P1) variant — 02-memory-bandwidth
 # NodePort: 30082  →  pod :80
 #
 # Build & push:
@@ -23,7 +23,7 @@ spec:
       cpu:    "250m"
       memory: "64Mi"
     limits:
-      cpu:    "500m"
+      cpu:    "4000m"
       memory: "128Mi"
 ---
 # Separate NodePort service — SpinOperator owns the ClusterIP service named
