@@ -20,14 +20,14 @@ from typing import Any
 #   Docker  (runc/native)               : docker-rust, docker-golang ports 30083-30084
 VARIANTS: dict[str, int] = {
     "wasm-rust":     30081,   # SpinKube / WASI P2 / Wasmtime-Cranelift
-    "wasm-tinygo":   30082,   # SpinKube / wasip1 (fermyon:spin/inbound-http) / Wasmtime-Cranelift
+    "wasm-tinygo":   30082,   # SpinKube / WASI P1 (fermyon:spin/inbound-http) / Wasmtime-Cranelift
     "docker-rust":   30083,
     "docker-golang": 30084,
 }
 
 VARIANT_LABELS: dict[str, str] = {
     "wasm-rust":     "Rust + Wasm (P2)",
-    "wasm-tinygo":   "TinyGo + Wasm (wasip1)",
+    "wasm-tinygo":   "TinyGo + Wasm (P1)",
     "docker-rust":   "Rust + Docker",
     "docker-golang": "Go + Docker",
 }

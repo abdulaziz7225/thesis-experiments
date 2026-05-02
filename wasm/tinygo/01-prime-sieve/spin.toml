@@ -3,7 +3,7 @@ spin_manifest_version = 2
 [application]
 name = "prime-sieve-wasm-tinygo"
 version = "0.1.0"
-description = "Prime sieve HTTP service — TinyGo + SpinKube (WASI P2, Wasmtime/Cranelift)"
+description = "Prime sieve HTTP service — TinyGo + SpinKube (WASI P1, Wasmtime/Cranelift)"
 
 # All HTTP paths are routed to the single prime-sieve component.
 [[trigger.http]]
@@ -12,7 +12,8 @@ component = "prime-sieve"
 
 [component.prime-sieve]
 # Path used by `spin up` (local dev) and `spin registry push` (OCI packaging).
-# Concurrency limit (max_instances) is set via SpinApp CRD spec.executor, not here.
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
 source = "app.wasm"
 
 [component.prime-sieve.build]

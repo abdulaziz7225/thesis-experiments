@@ -1,4 +1,4 @@
-// TinyGo + Spin (SpinKube / wasip1) – memory-bandwidth HTTP component
+// TinyGo + Spin (SpinKube / WASI P1) – memory-bandwidth HTTP component
 //
 // Build:  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 // Push:   spin registry push docker.io/abdulaziz7225/memory-bandwidth-wasm-tinygo:latest

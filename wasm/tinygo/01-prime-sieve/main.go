@@ -1,4 +1,4 @@
-// TinyGo + Spin (SpinKube / wasip1) – prime-sieve HTTP component
+// TinyGo + Spin (SpinKube / WASI P1) – prime-sieve HTTP component
 //
 // Build:  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 // Push:   spin registry push docker.io/abdulaziz7225/prime-sieve-wasm-tinygo:latest

@@ -12,7 +12,8 @@ component = "prime-sieve"
 
 [component.prime-sieve]
 # Path used by `spin up` (local dev) and `spin registry push` (OCI packaging).
-# Concurrency limit (max_instances) is set via SpinApp CRD spec.executor, not here.
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
 source = "target/wasm32-wasip1/release/prime_sieve_spin.wasm"
 
 [component.prime-sieve.build]

@@ -8,7 +8,7 @@
 # The resulting .wasm is pushed via `spin registry push` (NOT docker push).
 # containerd-shim-spin expects a Spin OCI artifact, not a standard Docker image.
 # See the README for the push workflow.
-FROM tinygo/tinygo:0.40.1 AS builder
+FROM tinygo/tinygo:0.40.0 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./

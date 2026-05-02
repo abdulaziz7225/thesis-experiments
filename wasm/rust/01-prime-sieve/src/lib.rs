@@ -109,8 +109,9 @@ fn health_handler() -> Response {
 // ── Entry point ───────────────────────────────────────────────────────────────
 // #[http_component] is invoked once per HTTP request by Spin's Wasmtime host.
 // No server loop — Spin's HTTP trigger handles accept()/dispatch.
-// max_instances = 1 in spin.toml caps concurrency to a single Wasm instance,
-// matching the single-thread constraints on the Docker variants (GOMAXPROCS=1, TOKIO_WORKER_THREADS=1).
+// Concurrency in the WASI P1/P2 dispatch model is bounded by the single-threaded
+// component instance per pod; horizontal scale-out is controlled by the SpinApp's
+// spec.replicas in k8s/01-prime-sieve/wasm-rust.yaml.
 #[http_component]
 fn handle(req: IncomingRequest) -> Response {
     let path_with_query = req.path_with_query().unwrap_or_default();

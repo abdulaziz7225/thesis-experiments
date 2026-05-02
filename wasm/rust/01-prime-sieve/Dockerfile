@@ -7,7 +7,7 @@
 # The resulting .wasm is pushed via `spin registry push` (NOT docker push).
 # containerd-shim-spin expects a Spin OCI artifact, not a standard Docker image.
 # See the README for the push workflow.
-FROM rust:1.86 AS builder
+FROM rust:1.94 AS builder
 
 # Install cargo-component for WASI P2 Component Model builds.
 RUN cargo install cargo-component --locked

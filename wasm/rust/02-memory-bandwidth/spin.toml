@@ -10,7 +10,8 @@ route = "/..."
 component = "memory-bandwidth"
 
 [component.memory-bandwidth]
-# Concurrency limit is set via SpinApp CRD spec.executor, not here.
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
 source = "target/wasm32-wasip1/release/memory_bandwidth_spin.wasm"
 
 [component.memory-bandwidth.build]
