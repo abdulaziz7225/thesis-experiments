@@ -10,10 +10,10 @@ The experiment deploys four primary variants of the same HTTP microservice bench
 
 | Variant | Runtime | WASI | K8s runtimeClassName |
 |---|---|---|---|
-| `docker-rust` | runc (native) | — | *(none — cluster default)* |
-| `docker-golang` | runc (native) | — | *(none — cluster default)* |
 | `wasm-rust` | Wasmtime/Cranelift (via Spin) | Preview 2 | `wasmtime-spin` |
 | `wasm-tinygo` | Wasmtime/Cranelift (via Spin) | Preview 2 | `wasmtime-spin` |
+| `docker-rust` | runc (native) | — | *(none — cluster default)* |
+| `docker-golang` | runc (native) | — | *(none — cluster default)* |
 
 ---
 
@@ -135,10 +135,14 @@ This is the standardised WASI P2 HTTP interface; every mature WASI P2 HTTP frame
 4. **CNCF Sandbox governance** — SpinKube was accepted to CNCF Sandbox in January 2025,
    providing the academic legitimacy required for the thesis citation.
 
-5. **`max_instances = 1` for resource fairness** — The supervisor requires that all variants
-   operate within the same resource capacity. Setting `max_instances = 1` in `spin.toml` caps
-   concurrent Wasm instances to 1, matching the single-thread constraint imposed on all variants
-   (GOMAXPROCS=1 for docker-golang, TOKIO_WORKER_THREADS=1 for docker-rust).
+5. **Single-replica baseline for resource fairness** — The supervisor requires that all variants
+   operate within the same resource capacity. For the limited-mode baseline the SpinApp is run
+   with `spec.replicas: 1` and the WASI P1/P2 component handles one request at a time on a
+   single Wasmtime instance, matching the single-thread constraint imposed on the Docker
+   variants (`GOMAXPROCS=1` for docker-golang, `TOKIO_WORKER_THREADS=1` for docker-rust). Earlier
+   versions of Spin exposed a `max_instances` knob in `spin.toml`; in Spin 2.x
+   (`spin_manifest_version = 2`) that field was removed, so concurrency is controlled at the
+   pod/replica level instead.
 
 ---
 

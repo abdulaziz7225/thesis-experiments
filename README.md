@@ -7,8 +7,8 @@ Four variants of each benchmark workload are deployed to a Kubernetes cluster (k
 
 | Variant         | Runtime                                             | Language      | HTTP layer                              | NodePort |
 | --------------- | --------------------------------------------------- | ------------- | --------------------------------------- | -------- |
-| `wasm-rust`     | SpinKube / Wasmtime-Cranelift (WASI Preview 2 (P2)) | Rust 1.94     | spin-sdk `#[http_component]` (async)    | 30081    |
-| `wasm-tinygo`   | SpinKube / Wasmtime-Cranelift (wasip1)              | TinyGo 0.40.1 | `spinhttp.Handle()` (net/http style)    | 30082    |
+| `wasm-rust`     | SpinKube / Wasmtime-Cranelift (WASI P2)             | Rust 1.94     | spin-sdk `#[http_component]` (async)    | 30081    |
+| `wasm-tinygo`   | SpinKube / Wasmtime-Cranelift (WASI P1)             | TinyGo 0.40.0 | `spinhttp.Handle()` (net/http style)    | 30082    |
 | `docker-rust`   | runc (OCI)                                          | Rust 1.94     | axum (async, tokio)                     | 30083    |
 | `docker-golang` | runc (OCI)                                          | Go 1.26       | net/http stdlib                         | 30084    |
 
@@ -30,8 +30,8 @@ thesis-experiments/
 │   │   ├── 01-prime-sieve/       # Spin/Rust (WASI P2 component): Sieve
 │   │   └── 02-memory-bandwidth/          # Spin/Rust (WASI P2 component): I/O + SHA-256
 │   └── tinygo/
-│       ├── 01-prime-sieve/       # Spin/TinyGo (wasip1): Sieve
-│       └── 02-memory-bandwidth/          # Spin/TinyGo (wasip1): I/O + SHA-256
+│       ├── 01-prime-sieve/       # Spin/TinyGo (WASI P1 component): Sieve
+│       └── 02-memory-bandwidth/          # Spin/TinyGo (WASI P1 component): I/O + SHA-256
 ├── k8s/
 │   ├── 01-prime-sieve/           # K8s manifests (namespace: prime-sieve)
 │   │   ├── namespace.yaml
@@ -133,7 +133,7 @@ docker build -t docker.io/${DOCKER_USER}/prime-sieve-docker-golang:latest \
     docker/golang/01-prime-sieve/
 docker push docker.io/${DOCKER_USER}/prime-sieve-docker-golang:latest
 
-# ── Wasm variants (WASI P2 OCI, spin registry push) ───────────────────────────
+# ── Wasm variants (SpinKube OCI, spin registry push) ──────────────────────────
 # Wasm images use Spin-specific OCI media types — use `spin registry push`, NOT docker push.
 
 # Wasm + Rust (01-prime-sieve)
@@ -291,8 +291,10 @@ Both orchestrators accept `--scaling-experiment limited|unlimited|both` (default
 - **`limited`** — GOMAXPROCS=1, TOKIO_WORKER_THREADS=1 for Docker variants; replicas=1 for Spin.
   Isolates single-threaded throughput; ensures the WASI P2 request-handler model is not penalised
   by comparing against an unrestricted multi-core Docker variant.
-- **`unlimited`** — GOMAXPROCS=2, TOKIO_WORKER_THREADS=2 for Docker; replicas=4 for Spin.
-  Shows how each variant exploits parallelism.
+- **`unlimited`** — GOMAXPROCS=4, TOKIO_WORKER_THREADS=4 for Docker; replicas=4 for Spin.
+  Matches the four physical vCPUs of the Hetzner ccx23 host so that each variant can
+  exploit the available parallelism. The K8s `limits.cpu` is set to `4000m` in the
+  manifests so cgroup CPU bandwidth control does not throttle the added threads.
 - **`both`** — runs limited first, then unlimited, then restores limited for cold-start measurements.
 
 Results for each mode go to `results/<example>/limited/` or `results/<example>/unlimited/`.
@@ -380,6 +382,6 @@ make teardown
 | k6                          | latest stable | setup-local target | Load testing tool                                          |
 | Rust (Docker + Spin)        | 1.94          | Dockerfile         | Current stable                                             |
 | Go (Docker)                 | 1.26          | Dockerfile         | Current stable                                             |
-| TinyGo (Spin)               | 0.40.1        | Dockerfile / local | `-target=wasip1`; wasip2 hardwires wasi:cli/command world  |
+| TinyGo (Spin)               | 0.40.0        | Dockerfile / local | `-target=wasip1`; wasip2 hardwires wasi:cli/command world  |
 | spin-sdk (Rust)             | 5.2.0         | Cargo.toml         | `#[http_component]` macro for WASI P2 HTTP handlers        |
 | spin-go-sdk (TinyGo)        | v2.2.1        | go.mod             | Official Spin Go SDK; exports fermyon:spin/inbound-http    |

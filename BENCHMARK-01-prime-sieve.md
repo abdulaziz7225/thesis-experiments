@@ -48,10 +48,10 @@ This makes it a clean signal for comparing raw compute overhead between the Dock
 
 | Variant | Runtime | Language | NodePort |
 |---------|---------|----------|----------|
+| `wasm-rust` | Wasmtime (SpinKube) | Rust (WASI P2) | 30081 |
+| `wasm-tinygo` | Wasmtime (SpinKube) | TinyGo (WASI P1) | 30082 |
 | `docker-rust` | runc | Rust (Axum) | 30083 |
 | `docker-golang` | runc | Go (net/http) | 30084 |
-| `wasm-rust` | Wasmtime (SpinKube) | Rust (spin-sdk) | 30081 |
-| `wasm-tinygo` | Wasmtime (SpinKube) | TinyGo (WASI P2) | 30082 |
 
 ## Concurrency constraints (limited mode)
 
@@ -61,4 +61,4 @@ To isolate runtime overhead from parallelism:
 - `docker-golang`: `GOMAXPROCS=1`
 - Wasm variants: inherently single-threaded (one Spin component instance)
 
-The unlimited mode uses `TOKIO_WORKER_THREADS=2`, `GOMAXPROCS=2`, and `replicas=4` for the SpinApp variants.
+The unlimited mode uses `TOKIO_WORKER_THREADS=4`, `GOMAXPROCS=4`, and `replicas=4` for the SpinApp variants — matching the four physical vCPUs of the Hetzner ccx23 host. The K8s `limits.cpu` is raised to `4000m` in the manifests so cgroup CPU bandwidth control does not throttle the added threads; `requests.cpu` stays at `250m` so all four Wasm replicas schedule cleanly alongside kube-system pods.

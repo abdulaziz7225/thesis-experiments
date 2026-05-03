@@ -1,11 +1,11 @@
-# WasmEdge / WASI Preview 1 (P1) — Optional Comparison Variants
+# WasmEdge / WASI P1 — Optional Comparison Variants
 
 This directory contains the **optional** WasmEdge/WASI P1 source code, kept as a reference
 comparison for Appendix B of the thesis.
 
 ## Why these are here
 
-The primary Wasm variants (`wasm/rust/`, `wasm/tinygo/`) use **SpinKube/Wasmtime (WASI Preview 2 (P2))**
+The primary Wasm variants (`wasm/rust/`, `wasm/tinygo/`) use **SpinKube/Wasmtime (WASI P2)**
 as the production-ready current ecosystem. These WasmEdge variants represent the earlier
 WASI P1 approach and are not part of the main benchmark.
 
