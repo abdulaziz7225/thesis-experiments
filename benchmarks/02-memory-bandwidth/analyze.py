@@ -68,17 +68,18 @@ def _k6_metric(summary: dict, metric: str, stat: str, scale: float = 1.0) -> flo
 def plot_image_sizes(sizes: dict, out_dir: Path) -> None:
     vals  = [sizes.get(v, 0) for v in ORDERED_VARIANTS]
     xs = np.arange(len(ORDERED_VARIANTS))
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(xs, vals, color=COLORS, edgecolor="white", linewidth=0.5)
     ax.bar_label(bars, fmt="%.2f MB", padding=3, fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Image / artifact size (MB)")
-    ax.set_title("02-memory-bandwidth: OCI Artifact Size")
+    ax.set_ylabel("Size (MB)")
+    ax.set_title("OCI image size", fontweight="bold")
     fig.tight_layout()
-    fig.savefig(out_dir / "image_size.png")
+    out_path = out_dir / "image_size.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved image_size.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_throughput(summaries: dict[str, dict], out_dir: Path) -> None:
@@ -87,40 +88,48 @@ def plot_throughput(summaries: dict[str, dict], out_dir: Path) -> None:
         for v in ORDERED_VARIANTS
     ]
     xs = np.arange(len(ORDERED_VARIANTS))
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(xs, rps_vals, color=COLORS, edgecolor="white", linewidth=0.5)
-    ax.bar_label(bars, fmt="%.1f RPS", padding=3, fontsize=9)
+    ax.bar_label(bars, fmt="%.0f rps", padding=3, fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Requests per second (RPS)")
-    ax.set_title("02-memory-bandwidth: Throughput at 50 VUs")
+    ax.set_ylabel("Throughput (rps)")
+    ax.set_title("Throughput (rps)", fontweight="bold")
     fig.tight_layout()
-    fig.savefig(out_dir / "throughput.png")
+    out_path = out_dir / "throughput.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved throughput.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_latency(summaries: dict[str, dict], out_dir: Path) -> None:
-    percentiles = ["med", "p(95)", "p(99)"]
+    metrics = [("p50", "med"), ("p95", "p(95)"), ("p99", "p(99)")]
     x = np.arange(len(ORDERED_VARIANTS))
     width = 0.25
-    fig, ax = plt.subplots(figsize=(9, 5))
-    for i, pct in enumerate(percentiles):
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for i, (label, k6_stat) in enumerate(metrics):
         vals = [
-            (_k6_metric(summaries[v], "http_req_duration", pct) or 0.0) if v in summaries else 0.0
+            (_k6_metric(summaries[v], "http_req_duration", k6_stat) or 0.0) if v in summaries else 0.0
             for v in ORDERED_VARIANTS
         ]
-        ax.bar(x + i * width, vals, width, label=f"p{pct.replace('(','').replace(')','').replace('med','50')}",
-               color=[c + "aa" for c in COLORS] if i > 0 else COLORS)
-    ax.set_xticks(x + width)
+        bars = ax.bar(x + (i - 1) * width, vals, width,
+                      label=label, alpha=0.85,
+                      color=["#555", "#888", "#aaa"][i])
+        for bar, val in zip(bars, vals):
+            if val:
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        bar.get_height() + 0.5,
+                        f"{val:.0f} ms", ha="center", va="bottom", fontsize=7)
+    ax.set_xticks(x)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
     ax.set_ylabel("Latency (ms)")
-    ax.set_title("02-memory-bandwidth: End-to-end Latency Distribution")
-    ax.legend()
+    ax.set_title("Latency – p50 / p95 / p99", fontweight="bold")
+    ax.legend(title="Percentile")
     fig.tight_layout()
-    fig.savefig(out_dir / "latency.png")
+    out_path = out_dir / "latency.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved latency.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_error_rate(summaries: dict[str, dict], out_dir: Path) -> None:
@@ -130,58 +139,77 @@ def plot_error_rate(summaries: dict[str, dict], out_dir: Path) -> None:
         for v in ORDERED_VARIANTS
     ]
     xs = np.arange(len(ORDERED_VARIANTS))
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(xs, rates, color=COLORS, edgecolor="white", linewidth=0.5)
-    ax.bar_label(bars, fmt="%.1f%%", padding=3, fontsize=9)
+    ax.bar_label(bars, fmt="%.2f%%", padding=3, fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("HTTP failure rate (%)")
-    ax.set_title("02-memory-bandwidth: Error Rate at 50 VUs")
+    ax.set_ylabel("Error rate (%)")
+    ax.set_title("Error rate", fontweight="bold")
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     fig.tight_layout()
-    fig.savefig(out_dir / "error_rate.png")
+    out_path = out_dir / "error_rate.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved error_rate.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_cold_start(cold_data: list, out_dir: Path) -> None:
     by_variant = {e["variant"]: e for e in cold_data}
-    vals = [
-        by_variant[v]["runs_ms"][0] if v in by_variant and by_variant[v]["runs_ms"] else 0.0
-        for v in ORDERED_VARIANTS
-    ]
+    means, errors = [], []
+    for v in ORDERED_VARIANTS:
+        entry = by_variant.get(v)
+        st = entry.get("stats") if entry else None
+        if st:
+            means.append(st.get("mean_ms", 0.0) or 0.0)
+            errors.append(st.get("stdev_ms", 0.0) or 0.0)
+        else:
+            means.append(0.0)
+            errors.append(0.0)
     xs = np.arange(len(ORDERED_VARIANTS))
-    fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(xs, vals, color=COLORS, edgecolor="white", linewidth=0.5)
-    ax.bar_label(bars, fmt="%.0f ms", padding=3, fontsize=9)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(xs, means, yerr=errors, color=COLORS, width=0.55,
+           capsize=5, edgecolor="white", linewidth=0.8)
+    for x, m in zip(xs, means):
+        ax.text(x, m + 5, f"{m:.0f} ms", ha="center", va="bottom", fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Cold-start latency (ms)")
-    ax.set_title("02-memory-bandwidth: Cold-Start Latency (includes image pull)")
+    ax.set_ylabel("Time to first response (ms)")
+    ax.set_title("Cold-start latency (mean ± stdev)", fontweight="bold")
     fig.tight_layout()
-    fig.savefig(out_dir / "cold_start.png")
+    out_path = out_dir / "cold_start.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved cold_start.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_warm_start(warm_data: list, out_dir: Path) -> None:
     by_variant = {e["variant"]: e for e in warm_data}
-    medians = [
-        by_variant[v]["stats"]["median_ms"] if v in by_variant and by_variant[v]["stats"] else 0.0
-        for v in ORDERED_VARIANTS
-    ]
+    means, errors = [], []
+    for v in ORDERED_VARIANTS:
+        entry = by_variant.get(v)
+        st = entry.get("stats") if entry else None
+        if st:
+            means.append(st.get("mean_ms", 0.0) or 0.0)
+            errors.append(st.get("stdev_ms", 0.0) or 0.0)
+        else:
+            means.append(0.0)
+            errors.append(0.0)
     xs = np.arange(len(ORDERED_VARIANTS))
-    fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(xs, medians, color=COLORS, edgecolor="white", linewidth=0.5)
-    ax.bar_label(bars, fmt="%.0f ms", padding=3, fontsize=9)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.bar(xs, means, yerr=errors, color=COLORS, width=0.55,
+           capsize=5, edgecolor="white", linewidth=0.8)
+    for x, m in zip(xs, means):
+        ax.text(x, m + 5, f"{m:.0f} ms", ha="center", va="bottom", fontsize=9)
     ax.set_xticks(xs)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Warm-start median latency (ms)")
-    ax.set_title("02-memory-bandwidth: Warm-Start Latency (median, N=5)")
+    ax.set_ylabel("Time to first response (ms)")
+    ax.set_title("Warm-start latency (mean ± stdev)", fontweight="bold")
     fig.tight_layout()
-    fig.savefig(out_dir / "warm_start.png")
+    out_path = out_dir / "warm_start.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved warm_start.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def plot_memory(resource_data: list, out_dir: Path) -> None:
@@ -190,18 +218,27 @@ def plot_memory(resource_data: list, out_dir: Path) -> None:
     peak  = [by_variant[v]["memory_peak_mb"]  if v in by_variant else None for v in ORDERED_VARIANTS]
     x = np.arange(len(ORDERED_VARIANTS))
     width = 0.35
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(x - width/2, [v or 0 for v in idle], width, label="Idle RSS", color=COLORS, alpha=0.7)
-    ax.bar(x + width/2, [v or 0 for v in peak], width, label="Peak RSS", color=COLORS)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars_idle = ax.bar(x - width/2, [v or 0 for v in idle], width,
+                       label="Idle", color=COLORS, alpha=0.7, edgecolor="white")
+    bars_peak = ax.bar(x + width/2, [v or 0 for v in peak], width,
+                       label="Peak (load)", color=COLORS, alpha=1.0, edgecolor="white",
+                       hatch="//")
+    for bar, val in list(zip(bars_idle, idle)) + list(zip(bars_peak, peak)):
+        if val:
+            ax.text(bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.3,
+                    f"{val:.1f} MB", ha="center", va="bottom", fontsize=8)
     ax.set_xticks(x)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Memory RSS (MB)")
-    ax.set_title("02-memory-bandwidth: Memory RSS (idle and peak)")
-    ax.legend()
+    ax.set_ylabel("Memory (MB)")
+    ax.set_title("Memory footprint – idle vs peak", fontweight="bold")
+    ax.legend(title="Phase", fontsize=9)
     fig.tight_layout()
-    fig.savefig(out_dir / "memory.png")
+    out_path = out_dir / "memory.png"
+    fig.savefig(out_path)
     plt.close(fig)
-    print("  Saved memory.png")
+    print(f"  Saved chart → {out_path}")
 
 
 def main() -> None:
@@ -232,8 +269,6 @@ def main() -> None:
     warm_data   = load_json_safe("warm_start.json")    or []
     resource_data = load_json_safe("resource_metrics.json") or []
 
-    print(f"Generating charts → {out_dir}")
-
     if sizes:
         plot_image_sizes(sizes, out_dir)
     if summaries:
@@ -246,8 +281,6 @@ def main() -> None:
         plot_warm_start(warm_data, out_dir)
     if resource_data:
         plot_memory(resource_data, out_dir)
-
-    print("Done.")
 
 
 if __name__ == "__main__":

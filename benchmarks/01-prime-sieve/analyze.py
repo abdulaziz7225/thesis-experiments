@@ -170,11 +170,11 @@ def plot_latency(ax: Axes, summaries: dict[str, dict | None]) -> None:
             if val:
                 ax.text(bar.get_x() + bar.get_width() / 2,
                         bar.get_height() + 0.5,
-                        f"{val:.0f}", ha="center", va="bottom", fontsize=7)
+                        f"{val:.0f} ms", ha="center", va="bottom", fontsize=7)
 
     ax.set_xticks(x)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
-    ax.set_ylabel("Response time (ms)")
+    ax.set_ylabel("Latency (ms)")
     ax.set_title("Latency – p50 / p95 / p99", fontweight="bold")
     ax.legend(title="Percentile")
 
@@ -183,7 +183,7 @@ def plot_throughput(ax: Axes, summaries: dict[str, dict | None]) -> None:
     vals = [_k6_metric_val(summaries.get(v), "http_reqs", "rate")
             if summaries.get(v) is not None else None
             for v in ORDERED_VARIANTS]
-    _bar(ax, vals, "Requests / second", "Throughput (RPS)", fmt="{:.1f}")
+    _bar(ax, vals, "Throughput (rps)", "Throughput (rps)", fmt="{:.0f} rps")
 
 
 def plot_failures(ax: Axes, summaries: dict[str, dict | None]) -> None:
@@ -195,7 +195,7 @@ def plot_failures(ax: Axes, summaries: dict[str, dict | None]) -> None:
             vals.append(rate * 100 if rate is not None else None)
         else:
             vals.append(None)
-    _bar(ax, vals, "Error rate (%)", "Error Rate", fmt="{:.2f}")
+    _bar(ax, vals, "Error rate (%)", "Error rate", fmt="{:.2f}%")
 
 
 def plot_rps_over_time(ax: Axes,
@@ -212,7 +212,7 @@ def plot_rps_over_time(ax: Axes,
             linewidth=1.5,
         )
     ax.set_xlabel("Time")
-    ax.set_ylabel("Requests / second")
+    ax.set_ylabel("Throughput (rps)")
     ax.set_title("Throughput over time", fontweight="bold")
     ax.legend(fontsize=9)
     ax.xaxis.set_tick_params(rotation=30)
@@ -280,7 +280,7 @@ def plot_memory(ax: Axes, resource: dict[str, dict]) -> None:
         if val:
             ax.text(bar.get_x() + bar.get_width() / 2,
                     bar.get_height() + 0.3,
-                    f"{val:.1f}", ha="center", va="bottom", fontsize=8)
+                    f"{val:.1f} MB", ha="center", va="bottom", fontsize=8)
 
     ax.set_xticks(x)
     ax.set_xticklabels(LABELS, rotation=15, ha="right")
@@ -293,13 +293,13 @@ def plot_cpu(ax: Axes, resource: dict[str, dict]) -> None:
     """Average CPU millicores during load test."""
     vals = [resource.get(v, {}).get("cpu_avg_mcores")
             for v in ORDERED_VARIANTS]
-    _bar(ax, vals, "CPU (millicores)",
-         "Avg CPU during load test", fmt="{:.0f}")
+    _bar(ax, vals, "CPU (mcores)",
+         "Avg CPU during load test", fmt="{:.0f} mcores")
 
 
 def plot_image_sizes(ax: Axes, sizes: dict[str, float]) -> None:
     vals = [sizes.get(v) for v in ORDERED_VARIANTS]
-    _bar(ax, vals, "Size (MB)", "OCI Image Size", fmt="{:.1f}")
+    _bar(ax, vals, "Size (MB)", "OCI image size", fmt="{:.2f} MB")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
