@@ -2,29 +2,29 @@
   {
     "variant": "wasm-rust",
     "label": "Rust + Wasm (P2)",
-    "memory_idle_mb": 18.7421875,
-    "memory_peak_mb": 19.25,
-    "cpu_avg_mcores": 275.4025708771053
+    "memory_idle_mb": 23.22265625,
+    "memory_peak_mb": 23.4765625,
+    "cpu_avg_mcores": 414.4217752411399
   },
   {
     "variant": "wasm-tinygo",
     "label": "TinyGo + Wasm (wasip1)",
-    "memory_idle_mb": 20.96484375,
-    "memory_peak_mb": 21.25390625,
-    "cpu_avg_mcores": 288.8817501312383
+    "memory_idle_mb": 24.18359375,
+    "memory_peak_mb": 24.21875,
+    "cpu_avg_mcores": 516.4933248245784
   },
   {
     "variant": "docker-rust",
     "label": "Rust + Docker",
-    "memory_idle_mb": 1.984375,
-    "memory_peak_mb": 2.65625,
-    "cpu_avg_mcores": 288.9386236829334
+    "memory_idle_mb": 2.87109375,
+    "memory_peak_mb": 3.17578125,
+    "cpu_avg_mcores": 1211.5116822171765
   },
   {
     "variant": "docker-golang",
     "label": "Go + Docker",
-    "memory_idle_mb": 7.14453125,
-    "memory_peak_mb": 7.28515625,
-    "cpu_avg_mcores": 289.0284262631385
+    "memory_idle_mb": 8.95703125,
+    "memory_peak_mb": 8.95703125,
+    "cpu_avg_mcores": 883.9625898626197
   }
 ]
