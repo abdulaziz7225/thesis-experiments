@@ -98,8 +98,10 @@ echo "════════════════════════�
 echo "  Step 0: Sequential deployment"
 echo "══════════════════════════════════════════"
 
-echo "  Tearing down previous example (prime-sieve) if running..."
-kubectl delete namespace prime-sieve --ignore-not-found=true || true
+echo "  Tearing down sibling example namespaces if running..."
+kubectl delete namespace prime-sieve    --ignore-not-found=true || true
+kubectl delete namespace http-fanout    --ignore-not-found=true || true
+kubectl delete namespace json-roundtrip --ignore-not-found=true || true
 
 echo "  Deploying 02-memory-bandwidth manifests..."
 kubectl apply -f "${REPO_ROOT}/k8s/02-memory-bandwidth/namespace.yaml"

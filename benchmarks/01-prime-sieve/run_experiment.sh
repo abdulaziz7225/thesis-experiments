@@ -87,6 +87,18 @@ wait_healthy() {
   echo " OK"
 }
 
+# ── Step 0: Sequential-example invariant ─────────────────────────────────────
+# All four examples (01-prime-sieve, 02-memory-bandwidth, 03-http-fanout,
+# 04-json-roundtrip) reuse NodePorts 30081-30084. Tear down any sibling
+# example namespaces before running 01-prime-sieve.
+echo ""
+echo "══════════════════════════════════════════"
+echo "  Step 0: Tear down sibling example namespaces"
+echo "══════════════════════════════════════════"
+kubectl delete namespace memory-bandwidth --ignore-not-found=true || true
+kubectl delete namespace http-fanout      --ignore-not-found=true || true
+kubectl delete namespace json-roundtrip   --ignore-not-found=true || true
+
 # ── Step 1: Pre-flight health check ──────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"
