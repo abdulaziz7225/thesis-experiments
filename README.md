@@ -5,12 +5,12 @@ Four variants of each benchmark workload are deployed to a Kubernetes cluster (k
 
 **Primary 4-variant matrix (all using the same NodePorts):**
 
-| Variant         | Runtime                                             | Language      | HTTP layer                              | NodePort |
-| --------------- | --------------------------------------------------- | ------------- | --------------------------------------- | -------- |
-| `wasm-rust`     | SpinKube / Wasmtime-Cranelift (WASI P2)             | Rust 1.94     | spin-sdk `#[http_component]` (async)    | 30081    |
-| `wasm-tinygo`   | SpinKube / Wasmtime-Cranelift (WASI P1)             | TinyGo 0.40.0 | `spinhttp.Handle()` (net/http style)    | 30082    |
-| `docker-rust`   | runc (OCI)                                          | Rust 1.94     | axum (async, tokio)                     | 30083    |
-| `docker-golang` | runc (OCI)                                          | Go 1.26       | net/http stdlib                         | 30084    |
+| Variant         | Runtime                                 | Language      | HTTP layer                           | NodePort |
+| --------------- | --------------------------------------- | ------------- | ------------------------------------ | -------- |
+| `wasm-rust`     | SpinKube / Wasmtime-Cranelift (WASI P2) | Rust 1.94     | spin-sdk `#[http_component]` (async) | 30081    |
+| `wasm-tinygo`   | SpinKube / Wasmtime-Cranelift (WASI P1) | TinyGo 0.40.0 | `spinhttp.Handle()` (net/http style) | 30082    |
+| `docker-rust`   | runc (OCI)                              | Rust 1.94     | axum (async, tokio)                  | 30083    |
+| `docker-golang` | runc (OCI)                              | Go 1.26       | net/http stdlib                      | 30084    |
 
 ---
 
@@ -27,29 +27,29 @@ thesis-experiments/
 │       └── 02-memory-bandwidth/          # Docker + Go (net/http): in-memory I/O + SHA-256
 ├── wasm/
 │   ├── rust/
-│   │   ├── 01-prime-sieve/       # Spin/Rust (WASI P2 component): Sieve
+│   │   ├── 01-prime-sieve/               # Spin/Rust (WASI P2 component): Sieve
 │   │   └── 02-memory-bandwidth/          # Spin/Rust (WASI P2 component): I/O + SHA-256
 │   └── tinygo/
-│       ├── 01-prime-sieve/       # Spin/TinyGo (WASI P1 component): Sieve
+│       ├── 01-prime-sieve/               # Spin/TinyGo (WASI P1 component): Sieve
 │       └── 02-memory-bandwidth/          # Spin/TinyGo (WASI P1 component): I/O + SHA-256
 ├── k8s/
-│   ├── 01-prime-sieve/           # K8s manifests (namespace: prime-sieve)
+│   ├── 01-prime-sieve/                   # K8s manifests (namespace: prime-sieve)
 │   │   ├── namespace.yaml
-│   │   ├── wasm-rust.yaml        # SpinApp CRD, nodePort 30081
-│   │   ├── wasm-tinygo.yaml      # SpinApp CRD, nodePort 30082
-│   │   ├── docker-rust.yaml      # Deployment + Service, nodePort 30083
-│   │   └── docker-golang.yaml    # Deployment + Service, nodePort 30084
+│   │   ├── wasm-rust.yaml                # SpinApp CRD, nodePort 30081
+│   │   ├── wasm-tinygo.yaml              # SpinApp CRD, nodePort 30082
+│   │   ├── docker-rust.yaml              # Deployment + Service, nodePort 30083
+│   │   └── docker-golang.yaml            # Deployment + Service, nodePort 30084
 │   └── 02-memory-bandwidth/              # K8s manifests (namespace: memory-bandwidth)
 │       ├── namespace.yaml
-│       ├── wasm-rust.yaml        # nodePort 30081
-│       ├── wasm-tinygo.yaml      # nodePort 30082
-│       ├── docker-rust.yaml      # nodePort 30083
-│       └── docker-golang.yaml    # nodePort 30084
+│       ├── wasm-rust.yaml                # nodePort 30081
+│       ├── wasm-tinygo.yaml              # nodePort 30082
+│       ├── docker-rust.yaml              # nodePort 30083
+│       └── docker-golang.yaml            # nodePort 30084
 ├── benchmarks/
-│   ├── shared/utils.py           # Shared helpers (VARIANTS, VARIANT_LABELS, Prometheus, kubectl)
-│   ├── 01-prime-sieve/           # k6 load tests + analysis for prime-sieve
+│   ├── shared/utils.py                   # Shared helpers (VARIANTS, VARIANT_LABELS, Prometheus, kubectl)
+│   ├── 01-prime-sieve/                   # k6 load tests + analysis for prime-sieve
 │   └── 02-memory-bandwidth/              # k6 load tests + analysis for memory-bandwidth
-└── results/                      # Output directory (git-ignored)
+└── results/                              # Output directory (git-ignored)
     ├── 01-prime-sieve/
     └── 02-memory-bandwidth/
 ```
@@ -59,7 +59,7 @@ thesis-experiments/
 | File                    | Purpose                                                                          |
 | ----------------------- | -------------------------------------------------------------------------------- |
 | `k6-load-test.js`       | k6 load-test script — 50 VUs, configurable duration, custom server metric        |
-| `cold_start.py`         | Cold (run 1) and warm (runs 2+) start by scaling deployments 0 → 1              |
+| `cold_start.py`         | Cold (run 1) and warm (runs 2+) start by scaling deployments 0 → 1               |
 | `prometheus_metrics.py` | Queries Prometheus for memory/CPU per variant over a load-test window            |
 | `analyze.py`            | Reads result files and generates chart PNGs (`--mode limited\|unlimited`)        |
 | `run_experiment.sh`     | Master orchestrator — health checks, load tests, cold start, image sizes, charts |
@@ -277,6 +277,7 @@ curl -s "http://${IP}:30081/membw?size_kb=64" | python3 -m json.tool
 # run_experiment.sh tears down prime-sieve first automatically
 ./benchmarks/02-memory-bandwidth/run_experiment.sh
 
+# Scaling experiment (both limited and unlimited passes)
 ./benchmarks/02-memory-bandwidth/run_experiment.sh \
     --scaling-experiment both \
     --size-kb 64 \
@@ -371,17 +372,17 @@ make teardown
 
 ## Toolchain version reference
 
-| Component                   | Version       | Pinned?            | Notes                                                      |
-| --------------------------- | ------------- | ------------------ | ---------------------------------------------------------- |
-| Kubernetes (kubeadm)        | v1.34.x       | cloud-init.sh      | Upstream reference platform; Flannel CNI                   |
-| containerd-shim-spin-v2     | v0.17.0       | cloud-init.sh      | SpinKube Wasm shim (Wasmtime/Cranelift)                    |
-| SpinOperator                | v0.6.1        | Makefile (Helm)    | Manages SpinApp CRDs; requires cert-manager                |
-| cert-manager                | v1.16.3       | Makefile (Helm)    | Prerequisite for SpinOperator webhooks                     |
-| Spin CLI                    | v3+           | local install      | `spin registry push` for WASI P2 OCI images               |
-| cargo-component             | latest        | local install      | Builds Rust WASI P2 components (`cargo component build`)   |
-| k6                          | latest stable | setup-local target | Load testing tool                                          |
-| Rust (Docker + Spin)        | 1.94          | Dockerfile         | Current stable                                             |
-| Go (Docker)                 | 1.26          | Dockerfile         | Current stable                                             |
-| TinyGo (Spin)               | 0.40.0        | Dockerfile / local | `-target=wasip1`; wasip2 hardwires wasi:cli/command world  |
-| spin-sdk (Rust)             | 5.2.0         | Cargo.toml         | `#[http_component]` macro for WASI P2 HTTP handlers        |
-| spin-go-sdk (TinyGo)        | v2.2.1        | go.mod             | Official Spin Go SDK; exports fermyon:spin/inbound-http    |
+| Component               | Version       | Pinned             | Notes                                                     |
+| ----------------------- | ------------- | ------------------ | --------------------------------------------------------- |
+| Kubernetes (kubeadm)    | v1.34.x       | cloud-init.sh      | Upstream reference platform; Flannel CNI                  |
+| containerd-shim-spin-v2 | v0.17.0       | cloud-init.sh      | SpinKube Wasm shim (Wasmtime/Cranelift)                   |
+| SpinOperator            | v0.6.1        | Makefile (Helm)    | Manages SpinApp CRDs; requires cert-manager               |
+| cert-manager            | v1.16.3       | Makefile (Helm)    | Prerequisite for SpinOperator webhooks                    |
+| Spin CLI                | v3+           | local install      | `spin registry push` for WASI P2 OCI images               |
+| cargo-component         | latest        | local install      | Builds Rust WASI P2 components (`cargo component build`)  |
+| k6                      | latest stable | setup-local target | Load testing tool                                         |
+| Rust (Docker + Spin)    | 1.94          | Dockerfile         | Current stable                                            |
+| Go (Docker)             | 1.26          | Dockerfile         | Current stable                                            |
+| TinyGo (Spin)           | 0.40.0        | Dockerfile / local | `-target=wasip1`; wasip2 hardwires wasi:cli/command world |
+| spin-sdk (Rust)         | 5.2.0         | Cargo.toml         | `#[http_component]` macro for WASI P2 HTTP handlers       |
+| spin-go-sdk (TinyGo)    | v2.2.1        | go.mod             | Official Spin Go SDK; exports fermyon:spin/inbound-http   |
