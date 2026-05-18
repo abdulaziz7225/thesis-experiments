@@ -1,0 +1,23 @@
+spin_manifest_version = 2
+
+[application]
+name = "http-fanout-wasm-tinygo"
+version = "0.1.0"
+description = "HTTP fan-out (I/O-bound) service — TinyGo + SpinKube (WASI P1, Wasmtime/Cranelift). Each request dispatches N sequential outbound HTTP GETs to the io-echo backend via spinhttp.Send (TinyGo wasip1 lacks safe support for concurrent outbound via sync.WaitGroup or goroutines)."
+
+[[trigger.http]]
+route = "/..."
+component = "http-fanout"
+
+[component.http-fanout]
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
+# Outbound HTTP fan-out is issued SEQUENTIALLY in this variant: TinyGo wasip1
+# panics on sync.WaitGroup.Wait, so we cannot replicate the Rust + WASI P2
+# concurrent join_all pattern. The Rust variant retains real async fan-out.
+source = "app.wasm"
+# Gate outbound HTTP to the in-cluster echo backend only (deny-by-default posture).
+allowed_outbound_hosts = ["http://io-echo.http-fanout.svc.cluster.local:80"]
+
+[component.http-fanout.build]
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
