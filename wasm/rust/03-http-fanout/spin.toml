@@ -1,0 +1,22 @@
+spin_manifest_version = 2
+
+[application]
+name = "http-fanout-wasm-rust"
+version = "0.1.0"
+description = "HTTP fan-out (I/O-bound) service — Rust + SpinKube (WASI P2, Wasmtime/Cranelift). Each request dispatches N concurrent outbound HTTP GETs to the io-echo backend."
+
+[[trigger.http]]
+route = "/..."
+component = "http-fanout"
+
+[component.http-fanout]
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
+# Outbound HTTP fan-out concurrency comes from cooperative async futures
+# inside the single Wasmtime instance — the idiomatic Spin I/O-bound pattern.
+source = "target/wasm32-wasip1/release/http_fanout_spin.wasm"
+# Gate outbound HTTP to the in-cluster echo backend only (deny-by-default posture).
+allowed_outbound_hosts = ["http://io-echo.http-fanout.svc.cluster.local:80"]
+
+[component.http-fanout.build]
+command = "cargo component build --release"
