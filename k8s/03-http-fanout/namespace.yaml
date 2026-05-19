@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: http-fanout
+  labels:
+    experiment: "03-http-fanout"
+    workload-class: "io-bound"

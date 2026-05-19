@@ -1,0 +1,55 @@
+# TinyGo + SpinKube (Wasmtime/Cranelift / WASI P1) variant — 03-http-fanout (I/O-bound)
+# NodePort: 30082  →  pod :80
+#
+# Prerequisites:
+#   1. SpinOperator is deployed (make deploy in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label)
+#   4. io-echo backend Deployment is reachable at
+#        http://io-echo.http-fanout.svc.cluster.local:80 (see io-echo.yaml).
+#   5. Image is built and pushed via spin registry push (NOT docker push):
+#        cd wasm/tinygo/03-http-fanout
+#        tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+#        spin registry push docker.io/abdulaziz7225/http-fanout-wasm-tinygo:latest
+#
+# Why SpinApp instead of Deployment: see 01-prime-sieve/wasm-rust.yaml comment.
+# Why port 80: Spin's default HTTP listen port inside the component is 80.
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: http-fanout-wasm-tinygo
+  namespace: http-fanout
+  labels:
+    variant: wasm-tinygo
+    experiment: "03-http-fanout"
+    workload-class: "io-bound"
+spec:
+  image: docker.io/abdulaziz7225/http-fanout-wasm-tinygo:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "4000m"
+      memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-fanout-wasm-tinygo-np
+  namespace: http-fanout
+  labels:
+    variant: wasm-tinygo
+    experiment: "03-http-fanout"
+spec:
+  type: NodePort
+  selector:
+    core.spinkube.dev/app.http-fanout-wasm-tinygo.status: ready
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30082
+      name:       http

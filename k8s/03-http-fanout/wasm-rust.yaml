@@ -1,0 +1,59 @@
+# Rust + SpinKube (Wasmtime/Cranelift / WASI P2) variant — 03-http-fanout (I/O-bound)
+# NodePort: 30081  →  pod :80
+#
+# Prerequisites:
+#   1. SpinOperator is deployed (make deploy in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label)
+#   4. io-echo backend Deployment is reachable at
+#        http://io-echo.http-fanout.svc.cluster.local:80 (see io-echo.yaml).
+#   5. Image is built and pushed via spin registry push (NOT docker push):
+#        cd wasm/rust/03-http-fanout
+#        cargo component build --release
+#        spin registry push docker.io/abdulaziz7225/http-fanout-wasm-rust:latest
+#
+# Why SpinApp instead of Deployment: see 01-prime-sieve/wasm-rust.yaml.
+# Why port 80: Spin's default HTTP listen port inside the component is 80.
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: http-fanout-wasm-rust
+  namespace: http-fanout
+  labels:
+    variant: wasm-rust
+    experiment: "03-http-fanout"
+    workload-class: "io-bound"
+spec:
+  image: docker.io/abdulaziz7225/http-fanout-wasm-rust:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  # Resources are identical to all other variants (supervisor requirement: same capacity).
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "4000m"
+      memory: "128Mi"
+---
+# Separate NodePort service — SpinOperator owns the ClusterIP service named
+# http-fanout-wasm-rust and reconciles any type change back to ClusterIP.
+# Use a distinct name so the operator does not manage this Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-fanout-wasm-rust-np
+  namespace: http-fanout
+  labels:
+    variant: wasm-rust
+    experiment: "03-http-fanout"
+spec:
+  type: NodePort
+  selector:
+    core.spinkube.dev/app.http-fanout-wasm-rust.status: ready
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30081
+      name:       http

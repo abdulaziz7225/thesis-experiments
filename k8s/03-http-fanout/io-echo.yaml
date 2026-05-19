@@ -1,0 +1,73 @@
+# io-echo backend Deployment + Service for the 03-http-fanout (I/O-bound) experiment.
+#
+# This pod is the OUTBOUND HTTP TARGET that all four fan-out variants call into.
+# It is intentionally NOT part of the 2x2 comparison matrix — it is the I/O wait
+# source. Holding the per-request delay (delay_ms) and response size (size_b)
+# stable at the backend turns the inbound-side measurement of throughput and
+# latency into a runtime-and-language signal rather than backend noise.
+#
+# Reachability: ClusterIP only (no NodePort). The four variants resolve it as
+# http://io-echo.http-fanout.svc.cluster.local:80 thanks to in-cluster DNS.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: io-echo
+  namespace: http-fanout
+  labels:
+    app:        io-echo
+    role:       io-bound-backend
+    experiment: "03-http-fanout"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: io-echo
+  template:
+    metadata:
+      labels:
+        app:  io-echo
+        role: io-bound-backend
+    spec:
+      containers:
+        - name:  io-echo
+          image: docker.io/abdulaziz7225/io-echo-backend:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu:    "100m"
+              memory: "32Mi"
+            limits:
+              cpu:    "500m"
+              memory: "64Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: io-echo
+  namespace: http-fanout
+  labels:
+    app:  io-echo
+    role: io-bound-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: io-echo
+  ports:
+    - port:       80
+      targetPort: 8080
+      name:       http
