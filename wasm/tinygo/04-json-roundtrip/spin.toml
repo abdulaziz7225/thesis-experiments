@@ -1,0 +1,18 @@
+spin_manifest_version = 2
+
+[application]
+name = "json-roundtrip-wasm-tinygo"
+version = "0.1.0"
+description = "JSON round-trip HTTP service — TinyGo + SpinKube (WASI P1, Wasmtime/Cranelift). POST /jsontx parses an integer array, sorts descending, returns aggregate stats."
+
+[[trigger.http]]
+route = "/..."
+component = "json-roundtrip"
+
+[component.json-roundtrip]
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
+source = "app.wasm"
+
+[component.json-roundtrip.build]
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
