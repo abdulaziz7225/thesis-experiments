@@ -1,0 +1,18 @@
+spin_manifest_version = 2
+
+[application]
+name = "json-roundtrip-wasm-rust"
+version = "0.1.0"
+description = "JSON round-trip HTTP service — Rust + SpinKube (WASI P2, Wasmtime/Cranelift). POST /jsontx parses an integer array, sorts descending, returns aggregate stats."
+
+[[trigger.http]]
+route = "/..."
+component = "json-roundtrip"
+
+[component.json-roundtrip]
+# Concurrency for the WASI P1/P2 component is single-threaded per instance;
+# horizontal scaling is governed by SpinApp `spec.replicas` in the k8s manifest.
+source = "target/wasm32-wasip1/release/json_roundtrip_spin.wasm"
+
+[component.json-roundtrip.build]
+command = "cargo component build --release"
