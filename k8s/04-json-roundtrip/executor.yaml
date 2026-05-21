@@ -1,0 +1,14 @@
+# SpinAppExecutor for the json-roundtrip namespace.
+# The SpinOperator webhook validates that this resource exists in the same
+# namespace as any SpinApp before accepting the creation request.
+# runtimeClassName matches the KWasm-provisioned RuntimeClass "wasmtime-spin".
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinAppExecutor
+metadata:
+  name: containerd-shim-spin
+  namespace: json-roundtrip
+spec:
+  createDeployment: true
+  deploymentConfig:
+    installDefaultCACerts: true
+    runtimeClassName: wasmtime-spin

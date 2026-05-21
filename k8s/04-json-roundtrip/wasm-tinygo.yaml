@@ -1,0 +1,52 @@
+# TinyGo + SpinKube (Wasmtime/Cranelift / WASI P1) variant — 04-json-roundtrip
+# NodePort: 30082  →  pod :80
+#
+# Prerequisites:
+#   1. SpinOperator is deployed (make deploy in thesis-infra-setup)
+#   2. RuntimeClass "wasmtime-spin" exists (make deploy)
+#   3. Node is labelled with runtime.spin.sh/runtime=spin (make label)
+#   4. Image is built and pushed via spin registry push (NOT docker push):
+#        cd wasm/tinygo/04-json-roundtrip
+#        tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+#        spin registry push docker.io/abdulaziz7225/json-roundtrip-wasm-tinygo:latest
+#
+# Why SpinApp instead of Deployment: see 01-prime-sieve/wasm-rust.yaml comment.
+# Why port 80: Spin's default HTTP listen port inside the component is 80.
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: json-roundtrip-wasm-tinygo
+  namespace: json-roundtrip
+  labels:
+    variant: wasm-tinygo
+    experiment: "04-json-roundtrip"
+spec:
+  image: docker.io/abdulaziz7225/json-roundtrip-wasm-tinygo:latest
+  executor: containerd-shim-spin
+  replicas: 1
+  resources:
+    requests:
+      cpu:    "250m"
+      memory: "64Mi"
+    limits:
+      cpu:    "4000m"
+      memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: json-roundtrip-wasm-tinygo-np
+  namespace: json-roundtrip
+  labels:
+    variant: wasm-tinygo
+    experiment: "04-json-roundtrip"
+spec:
+  type: NodePort
+  selector:
+    core.spinkube.dev/app.json-roundtrip-wasm-tinygo.status: ready
+  ports:
+    - port:       80
+      targetPort: 80
+      nodePort:   30082
+      name:       http
