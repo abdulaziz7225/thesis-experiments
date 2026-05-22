@@ -3,6 +3,16 @@
 Benchmark experiments comparing Docker vs. WebAssembly microservice runtimes.
 Four variants of each benchmark workload are deployed to a Kubernetes cluster (kubeadm) and load-tested.
 
+Four complementary workloads, each exercising a different cost dimension of the
+runtime + language combination:
+
+| Example               | Workload class                | Hot path                                                           |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------ |
+| `01-prime-sieve`      | **CPU-bound**                 | Integer compute (Sieve of Eratosthenes)                            |
+| `02-memory-bandwidth` | **memory-bound**              | Bulk heap allocation + SHA-256 over a configurable buffer          |
+| `03-http-fanout`      | **I/O-bound**                 | N concurrent outbound HTTP GETs to an in-cluster `io-echo` backend |
+| `04-json-roundtrip`   | **serialization + allocator** | Parse a posted JSON integer array, sort, aggregate, re-serialise   |
+
 **Primary 4-variant matrix (all using the same NodePorts):**
 
 | Variant         | Runtime                                 | Language      | HTTP layer                           | NodePort |
@@ -18,40 +28,46 @@ Four variants of each benchmark workload are deployed to a Kubernetes cluster (k
 
 ```text
 thesis-experiments/
+├── backend/
+│   └── io-echo/                          # Tiny Go HTTP backend with configurable delay (used by 03-http-fanout)
 ├── docker/
 │   ├── rust/
-│   │   ├── 01-prime-sieve/               # Docker + Rust (axum): Sieve of Eratosthenes
-│   │   └── 02-memory-bandwidth/          # Docker + Rust (axum): in-memory I/O + SHA-256
+│   │   ├── 01-prime-sieve/               # Docker + Rust (axum): Sieve of Eratosthenes        – CPU-bound
+│   │   ├── 02-memory-bandwidth/          # Docker + Rust (axum): in-memory I/O + SHA-256       – memory-bound
+│   │   ├── 03-http-fanout/               # Docker + Rust (axum + reqwest): outbound HTTP fan-out – I/O-bound
+│   │   └── 04-json-roundtrip/            # Docker + Rust (axum + serde): JSON parse / transform – serialization
 │   └── golang/
-│       ├── 01-prime-sieve/               # Docker + Go (net/http): Sieve of Eratosthenes
-│       └── 02-memory-bandwidth/          # Docker + Go (net/http): in-memory I/O + SHA-256
+│       ├── 01-prime-sieve/               # Docker + Go (net/http): Sieve of Eratosthenes        – CPU-bound
+│       ├── 02-memory-bandwidth/          # Docker + Go (net/http): in-memory I/O + SHA-256       – memory-bound
+│       ├── 03-http-fanout/               # Docker + Go (net/http + goroutines): outbound HTTP fan-out – I/O-bound
+│       └── 04-json-roundtrip/            # Docker + Go (net/http + encoding/json): JSON parse / transform – serialization
 ├── wasm/
 │   ├── rust/
-│   │   ├── 01-prime-sieve/               # Spin/Rust (WASI P2 component): Sieve
-│   │   └── 02-memory-bandwidth/          # Spin/Rust (WASI P2 component): I/O + SHA-256
+│   │   ├── 01-prime-sieve/               # Spin/Rust (WASI P2): Sieve                          – CPU-bound
+│   │   ├── 02-memory-bandwidth/          # Spin/Rust (WASI P2): I/O + SHA-256                  – memory-bound
+│   │   ├── 03-http-fanout/               # Spin/Rust (WASI P2): outbound HTTP fan-out          – I/O-bound
+│   │   └── 04-json-roundtrip/            # Spin/Rust (WASI P2): JSON parse / transform         – serialization
 │   └── tinygo/
-│       ├── 01-prime-sieve/               # Spin/TinyGo (WASI P1 component): Sieve
-│       └── 02-memory-bandwidth/          # Spin/TinyGo (WASI P1 component): I/O + SHA-256
+│       ├── 01-prime-sieve/               # Spin/TinyGo (WASI P1): Sieve                        – CPU-bound
+│       ├── 02-memory-bandwidth/          # Spin/TinyGo (WASI P1): I/O + SHA-256                – memory-bound
+│       ├── 03-http-fanout/               # Spin/TinyGo (WASI P1): outbound HTTP fan-out        – I/O-bound
+│       └── 04-json-roundtrip/            # Spin/TinyGo (WASI P1): JSON parse / transform       – serialization
 ├── k8s/
-│   ├── 01-prime-sieve/                   # K8s manifests (namespace: prime-sieve)
-│   │   ├── namespace.yaml
-│   │   ├── wasm-rust.yaml                # SpinApp CRD, nodePort 30081
-│   │   ├── wasm-tinygo.yaml              # SpinApp CRD, nodePort 30082
-│   │   ├── docker-rust.yaml              # Deployment + Service, nodePort 30083
-│   │   └── docker-golang.yaml            # Deployment + Service, nodePort 30084
-│   └── 02-memory-bandwidth/              # K8s manifests (namespace: memory-bandwidth)
-│       ├── namespace.yaml
-│       ├── wasm-rust.yaml                # nodePort 30081
-│       ├── wasm-tinygo.yaml              # nodePort 30082
-│       ├── docker-rust.yaml              # nodePort 30083
-│       └── docker-golang.yaml            # nodePort 30084
+│   ├── 01-prime-sieve/                   # K8s manifests (namespace: prime-sieve)         – CPU-bound
+│   ├── 02-memory-bandwidth/              # K8s manifests (namespace: memory-bandwidth)    – memory-bound
+│   ├── 03-http-fanout/                   # K8s manifests (namespace: http-fanout)         – I/O-bound (+ io-echo backend)
+│   └── 04-json-roundtrip/                # K8s manifests (namespace: json-roundtrip)      – serialization
 ├── benchmarks/
 │   ├── shared/utils.py                   # Shared helpers (VARIANTS, VARIANT_LABELS, Prometheus, kubectl)
-│   ├── 01-prime-sieve/                   # k6 load tests + analysis for prime-sieve
-│   └── 02-memory-bandwidth/              # k6 load tests + analysis for memory-bandwidth
+│   ├── 01-prime-sieve/                   # k6 load tests + analysis for prime-sieve (CPU-bound)
+│   ├── 02-memory-bandwidth/              # k6 load tests + analysis for memory-bandwidth
+│   ├── 03-http-fanout/                   # k6 load tests + analysis for http-fanout (I/O-bound)
+│   └── 04-json-roundtrip/                # k6 N-sweep load tests + analysis for json-roundtrip
 └── results/                              # Output directory (git-ignored)
     ├── 01-prime-sieve/
-    └── 02-memory-bandwidth/
+    ├── 02-memory-bandwidth/
+    ├── 03-http-fanout/
+    └── 04-json-roundtrip/
 ```
 
 ### Benchmark scripts (per example)
@@ -68,25 +84,27 @@ thesis-experiments/
 
 ## Sequential Example Model
 
-All benchmark examples reuse the same NodePorts (30081–30084).
+All four benchmark examples reuse the same NodePorts (30081–30084).
 **Only one example may be active at a time.** Each `run_experiment.sh` automatically
-tears down the previous example's namespace before deploying its own:
+tears down the sibling example namespaces before deploying its own:
 
 ```bash
-# run_experiment.sh for 02-memory-bandwidth does this automatically:
-kubectl delete namespace prime-sieve --ignore-not-found
-kubectl apply -f k8s/02-memory-bandwidth/
+# run_experiment.sh for 03-http-fanout does this automatically:
+kubectl delete namespace prime-sieve      --ignore-not-found
+kubectl delete namespace memory-bandwidth --ignore-not-found
+kubectl delete namespace json-roundtrip   --ignore-not-found
+kubectl apply -f k8s/03-http-fanout/
 ```
 
 To switch manually:
 
 ```bash
-# Tear down 01-prime-sieve
-kubectl delete namespace prime-sieve
+# Tear down whatever is running
+kubectl delete namespace prime-sieve memory-bandwidth http-fanout json-roundtrip --ignore-not-found
 
-# Deploy 02-memory-bandwidth
-kubectl apply -f k8s/02-memory-bandwidth/namespace.yaml
-kubectl apply -f k8s/02-memory-bandwidth/
+# Deploy 03-http-fanout (the I/O-bound example, including the io-echo backend)
+kubectl apply -f k8s/03-http-fanout/namespace.yaml
+kubectl apply -f k8s/03-http-fanout/
 ```
 
 ---
@@ -109,6 +127,15 @@ spin --version   # v3+
 
 # cargo-component (for Rust WASI P2 components)
 cargo install cargo-component
+
+# TinyGo + Go 1.23.12 SDK (REQUIRED for the wasm-tinygo variants)
+# TinyGo 0.40.1 rejects Go >= 1.26, and Go 1.24/1.25 trigger crypto/sha256 panics
+# inside the TinyGo runtime on wasip1. Go 1.23.12 is the only known-good version.
+# Install it via the official "go get" SDK manager (does not affect the system Go):
+go install golang.org/dl/go1.23.12@latest
+go1.23.12 download
+# go1.23.12 lands in ~/sdk/go1.23.12 — the Phase 1 tinygo build commands prepend
+# that directory to PATH so TinyGo invokes the right Go toolchain.
 
 # kubectl pointing to the Hetzner cluster (set after infra is up)
 export KUBECONFIG=../thesis-infra-setup/hetzner-thesis.yaml
@@ -135,6 +162,11 @@ docker push docker.io/${DOCKER_USER}/prime-sieve-docker-golang:latest
 
 # ── Wasm variants (SpinKube OCI, spin registry push) ──────────────────────────
 # Wasm images use Spin-specific OCI media types — use `spin registry push`, NOT docker push.
+#
+# Wasm + TinyGo note: TinyGo 0.40.1 rejects Go >= 1.26 and Go 1.24/1.25 trigger
+# crypto/sha256 panics inside the TinyGo wasip1 runtime. The build commands below
+# prepend ~/sdk/go1.23.12/bin to PATH so TinyGo picks up the known-good Go 1.23.12
+# toolchain (installed in Phase 0). The Wasm + Rust commands are unaffected.
 
 # Wasm + Rust (01-prime-sieve)
 cd wasm/rust/01-prime-sieve
@@ -146,7 +178,8 @@ cd ../../..
 
 # Wasm + TinyGo (01-prime-sieve)
 cd wasm/tinygo/01-prime-sieve
-tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+PATH="$HOME/sdk/go1.23.12/bin:$PATH" \
+  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 spin registry push docker.io/${DOCKER_USER}/prime-sieve-wasm-tinygo:latest
 cd ../../..
 
@@ -166,8 +199,55 @@ spin registry push docker.io/${DOCKER_USER}/memory-bandwidth-wasm-rust:latest
 cd ../../..
 
 cd wasm/tinygo/02-memory-bandwidth
-tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+PATH="$HOME/sdk/go1.23.12/bin:$PATH" \
+  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
 spin registry push docker.io/${DOCKER_USER}/memory-bandwidth-wasm-tinygo:latest
+cd ../../..
+
+# ── 03-http-fanout variants (I/O-bound; also needs the io-echo backend image) ────
+
+# I/O target pod — built ONCE, reused by the four 03 variants for outbound HTTP.
+docker build -t docker.io/${DOCKER_USER}/io-echo-backend:latest backend/io-echo/
+docker push  docker.io/${DOCKER_USER}/io-echo-backend:latest
+
+docker build -t docker.io/${DOCKER_USER}/http-fanout-docker-rust:latest \
+    docker/rust/03-http-fanout/
+docker push docker.io/${DOCKER_USER}/http-fanout-docker-rust:latest
+
+docker build -t docker.io/${DOCKER_USER}/http-fanout-docker-golang:latest \
+    docker/golang/03-http-fanout/
+docker push docker.io/${DOCKER_USER}/http-fanout-docker-golang:latest
+
+cd wasm/rust/03-http-fanout
+cargo component build --release
+spin registry push docker.io/${DOCKER_USER}/http-fanout-wasm-rust:latest
+cd ../../..
+
+cd wasm/tinygo/03-http-fanout
+PATH="$HOME/sdk/go1.23.12/bin:$PATH" \
+  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+spin registry push docker.io/${DOCKER_USER}/http-fanout-wasm-tinygo:latest
+cd ../../..
+
+# ── 04-json-roundtrip variants (serialization / allocator hot path) ──────────
+
+docker build -t docker.io/${DOCKER_USER}/json-roundtrip-docker-rust:latest \
+    docker/rust/04-json-roundtrip/
+docker push docker.io/${DOCKER_USER}/json-roundtrip-docker-rust:latest
+
+docker build -t docker.io/${DOCKER_USER}/json-roundtrip-docker-golang:latest \
+    docker/golang/04-json-roundtrip/
+docker push docker.io/${DOCKER_USER}/json-roundtrip-docker-golang:latest
+
+cd wasm/rust/04-json-roundtrip
+cargo component build --release
+spin registry push docker.io/${DOCKER_USER}/json-roundtrip-wasm-rust:latest
+cd ../../..
+
+cd wasm/tinygo/04-json-roundtrip
+PATH="$HOME/sdk/go1.23.12/bin:$PATH" \
+  tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm .
+spin registry push docker.io/${DOCKER_USER}/json-roundtrip-wasm-tinygo:latest
 cd ../../..
 ```
 
@@ -251,6 +331,16 @@ curl -s "http://${IP}:30084/sieve?limit=100&no_list=0" | python3 -m json.tool
 
 # Functional check (02-memory-bandwidth, after switching examples)
 curl -s "http://${IP}:30081/membw?size_kb=64" | python3 -m json.tool
+
+# Functional check (03-http-fanout, I/O-bound, after switching examples)
+# Each variant dispatches n=3 concurrent outbound GETs to io-echo (10 ms each):
+curl -s "http://${IP}:30081/fanout?n=3&delay_ms=10&no_list=0" | python3 -m json.tool
+curl -s "http://${IP}:30082/fanout?n=3&delay_ms=10&no_list=0" | python3 -m json.tool
+
+# Functional check (04-json-roundtrip, after switching examples)
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '[5,1,4,2,3]' \
+  "http://${IP}:30081/jsontx?no_list=0" | python3 -m json.tool
 ```
 
 ---
@@ -274,7 +364,7 @@ curl -s "http://${IP}:30081/membw?size_kb=64" | python3 -m json.tool
 ### 02-memory-bandwidth
 
 ```bash
-# run_experiment.sh tears down prime-sieve first automatically
+# run_experiment.sh tears down sibling example namespaces first automatically
 ./benchmarks/02-memory-bandwidth/run_experiment.sh
 
 # Scaling experiment (both limited and unlimited passes)
@@ -283,6 +373,53 @@ curl -s "http://${IP}:30081/membw?size_kb=64" | python3 -m json.tool
     --size-kb 64 \
     --users 50 \
     --duration 60s
+```
+
+### 03-http-fanout (I/O-bound)
+
+This example is the I/O-bound counterpart to 01-prime-sieve (CPU-bound) and
+02-memory-bandwidth (memory-bound). Each variant exposes
+`GET /fanout?n=N&delay_ms=D` and dispatches N concurrent outbound HTTP GETs
+to an in-cluster `io-echo` backend Deployment that sleeps for `delay_ms`
+before responding; per-request latency is therefore dominated by outbound
+I/O wait rather than CPU work. Spin variants use
+`spin_sdk::http::send` + `futures::join_all` (Rust) or `spinhttp.Send` +
+goroutines (TinyGo); Docker variants use `reqwest` (Rust) and `net/http`
+(Go) — the same idiomatic async/concurrent I/O pattern in each ecosystem.
+
+```bash
+# run_experiment.sh tears down sibling example namespaces and brings up io-echo
+./benchmarks/03-http-fanout/run_experiment.sh
+
+# Scaling experiment, full sweep:
+./benchmarks/03-http-fanout/run_experiment.sh \
+    --scaling-experiment both \
+    --n 5 \
+    --delay-ms 50 \
+    --users 50 \
+    --duration 60s
+```
+
+### 04-json-roundtrip
+
+Stresses the serde / `encoding/json` hot path, allocator churn on small
+irregular objects, and the host->guest HTTP-body copy across the WASI
+boundary — a microservice hot path that none of 01-prime-sieve (integer
+compute), 02-memory-bandwidth (bulk memcpy), or 03-http-fanout (outbound
+I/O wait) exercises. The k6 harness sweeps the request array length
+`N` over `[100, 1000, 10000, 100000]` and emits a dedicated
+`n_sweep.png` line chart showing throughput-vs-N per variant.
+
+```bash
+# Defaults: limited threads, 20 VUs, 30 s per N, sweep [100, 1000, 10000, 100000]
+./benchmarks/04-json-roundtrip/run_experiment.sh
+
+# Scaling experiment, full sweep:
+./benchmarks/04-json-roundtrip/run_experiment.sh \
+    --scaling-experiment both \
+    --users 20 \
+    --duration 30s \
+    --ns "100 1000 10000 100000"
 ```
 
 ### Scaling experiment
@@ -334,6 +471,12 @@ python3 benchmarks/01-prime-sieve/analyze.py --mode unlimited
 
 python3 benchmarks/02-memory-bandwidth/analyze.py --mode limited
 python3 benchmarks/02-memory-bandwidth/analyze.py --mode unlimited
+
+python3 benchmarks/03-http-fanout/analyze.py --mode limited
+python3 benchmarks/03-http-fanout/analyze.py --mode unlimited
+
+python3 benchmarks/04-json-roundtrip/analyze.py --mode limited
+python3 benchmarks/04-json-roundtrip/analyze.py --mode unlimited
 ```
 
 ---
@@ -361,7 +504,8 @@ rate(container_cpu_usage_seconds_total{namespace="prime-sieve"}[30s])
 
 ```bash
 # Remove active experiment workloads (keep VM running)
-kubectl delete namespace prime-sieve   # or memory-bandwidth
+kubectl delete namespace prime-sieve memory-bandwidth http-fanout json-roundtrip \
+  --ignore-not-found
 
 # Destroy the VM completely
 cd ../thesis-infra-setup
