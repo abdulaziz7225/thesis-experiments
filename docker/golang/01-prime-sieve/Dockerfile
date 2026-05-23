@@ -7,7 +7,7 @@ COPY go.mod ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o prime-sieve .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o prime-sieve .
 
 # ── Stage 2: minimal runtime image ──────────────────────────────────────────
 FROM scratch
