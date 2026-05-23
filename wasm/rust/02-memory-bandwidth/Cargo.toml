@@ -16,6 +16,8 @@ hex       = "0.4"
 package = "component:memory-bandwidth-spin"
 
 [profile.release]
-opt-level = "s"
-lto       = true
-strip     = true
+opt-level     = "s"
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"

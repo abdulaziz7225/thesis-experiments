@@ -217,6 +217,3 @@ __marimo__/
 
 # Peacock Extension theme color settings
 .vscode/
-
-# Grafana K6 logs
-*_k6.json

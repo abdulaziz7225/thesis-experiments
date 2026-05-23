@@ -16,6 +16,8 @@ serde_json = "1"
 package = "component:prime-sieve-spin"
 
 [profile.release]
-opt-level = "s"
-lto       = true
-strip     = true
+opt-level     = "s"
+lto           = true
+codegen-units = 1
+strip         = true
+panic         = "abort"
