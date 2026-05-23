@@ -20,4 +20,4 @@ source = "app.wasm"
 allowed_outbound_hosts = ["http://io-echo.http-fanout.svc.cluster.local:80"]
 
 [component.http-fanout.build]
-command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -no-debug -o app.wasm ."

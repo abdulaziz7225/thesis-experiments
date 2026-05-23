@@ -15,4 +15,4 @@ component = "json-roundtrip"
 source = "app.wasm"
 
 [component.json-roundtrip.build]
-command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -o app.wasm ."
+command = "tinygo build -target=wasip1 -gc=conservative -opt=2 -no-debug -o app.wasm ."
