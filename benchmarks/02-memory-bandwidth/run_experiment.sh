@@ -298,6 +298,15 @@ if [[ ! -f "${IMAGE_SIZES_FILE}" ]]; then
   echo '  Then create: {"wasm-rust":<MB>,"wasm-tinygo":<MB>,"docker-rust":<MB>,"docker-golang":<MB>}'
 fi
 
+# ── Step 4b: Binary artifact sizes (raw .wasm / scratch binary) ──────────────
+echo ""
+echo "══════════════════════════════════════════"
+echo "  Step 4b: Binary artifact sizes"
+echo "══════════════════════════════════════════"
+python3 "${SCRIPT_DIR}/../shared/binary_sizes.py" \
+  --example 02-memory-bandwidth 2>&1 | sed 's/^/    /' \
+  || echo "  WARN: binary size collection failed (continuing)"
+
 # ── Step 5: Generate charts ───────────────────────────────────────────────────
 echo ""
 echo "══════════════════════════════════════════"

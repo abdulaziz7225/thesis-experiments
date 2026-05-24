@@ -125,6 +125,14 @@ def load_image_sizes() -> dict[str, float] | None:
         return json.load(f)
 
 
+def load_binary_sizes() -> dict[str, float] | None:
+    path = results_path("binary_sizes.json")
+    if not path.exists():
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
 # ── Generic helpers ───────────────────────────────────────────────────────────
 def _bar(ax: Axes, values: list[float | None], ylabel: str, title: str,
          fmt: str = "{:.0f}") -> None:
@@ -302,13 +310,19 @@ def plot_image_sizes(ax: Axes, sizes: dict[str, float]) -> None:
     _bar(ax, vals, "Size (MB)", "OCI image size", fmt="{:.2f} MB")
 
 
+def plot_binary_sizes(ax: Axes, sizes: dict[str, float]) -> None:
+    vals = [sizes.get(v) for v in ORDERED_VARIANTS]
+    _bar(ax, vals, "Size (MB)", "Binary artifact size", fmt="{:.2f} MB")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def _render_panel(panel: str, summaries: dict[str, dict | None],
                   ts_map: dict[str, pd.DataFrame | None],
                   cold_data: list[dict] | None,
                   warm_data: list[dict] | None,
                   resource: dict[str, dict] | None,
-                  image_sizes: dict[str, float] | None) -> Figure:
+                  image_sizes: dict[str, float] | None,
+                  binary_sizes: dict[str, float] | None) -> Figure:
     """Create and return a standalone single-panel figure."""
     fig, ax = plt.subplots(1, 1, figsize=(8, 5))
     if panel == "latency":
@@ -334,21 +348,25 @@ def _render_panel(panel: str, summaries: dict[str, dict | None],
     elif panel == "image_size":
         assert image_sizes is not None
         plot_image_sizes(ax, image_sizes)
+    elif panel == "binary_size":
+        assert binary_sizes is not None
+        plot_binary_sizes(ax, binary_sizes)
     fig.tight_layout()
     return fig
 
 
 # Maps panel key → output filename (no extension).
 PANEL_FILENAMES: dict[str, str] = {
-    "latency":    "latency",
-    "throughput": "throughput",
-    "failures":   "error_rate",
-    "rps_time":   "rps_over_time",
-    "cold_start": "cold_start",
-    "warm_start": "warm_start",
-    "memory":     "memory",
-    "cpu":        "cpu",
-    "image_size": "image_size",
+    "latency":     "latency",
+    "throughput":  "throughput",
+    "failures":    "error_rate",
+    "rps_time":    "rps_over_time",
+    "cold_start":  "cold_start",
+    "warm_start":  "warm_start",
+    "memory":      "memory",
+    "cpu":         "cpu",
+    "image_size":  "image_size",
+    "binary_size": "binary_size",
 }
 
 
@@ -377,6 +395,7 @@ def main() -> None:
     warm_data = load_startup("warm_start.json")
     resource = load_resource_metrics()
     image_sizes = load_image_sizes()
+    binary_sizes = load_binary_sizes()
 
     has_summaries = any(v is not None for v in summaries.values())
     has_timeseries = any(v is not None for v in ts_map.values())
@@ -398,6 +417,8 @@ def main() -> None:
         panels += ["memory", "cpu"]
     if image_sizes:
         panels.append("image_size")
+    if binary_sizes:
+        panels.append("binary_size")
 
     # ── Individual chart files ─────────────────────────────────────────────────
     charts_dir = Path(args.charts_dir)
@@ -405,7 +426,7 @@ def main() -> None:
 
     for panel in panels:
         fig = _render_panel(panel, summaries, ts_map, cold_data, warm_data,
-                            resource, image_sizes)
+                            resource, image_sizes, binary_sizes)
         out_path = charts_dir / f"{PANEL_FILENAMES[panel]}.png"
         fig.savefig(out_path, dpi=150)
         plt.close(fig)

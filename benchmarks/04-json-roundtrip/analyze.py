@@ -105,6 +105,23 @@ def plot_image_sizes(sizes: dict, out_dir: Path) -> None:
     print(f"  Saved chart → {out_path}")
 
 
+def plot_binary_sizes(sizes: dict, out_dir: Path) -> None:
+    vals = [sizes.get(v, 0) for v in ORDERED_VARIANTS]
+    xs = np.arange(len(ORDERED_VARIANTS))
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(xs, vals, color=COLORS, edgecolor="white", linewidth=0.5)
+    ax.bar_label(bars, fmt="%.2f MB", padding=3, fontsize=9)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(LABELS, rotation=15, ha="right")
+    ax.set_ylabel("Size (MB)")
+    ax.set_title("Binary artifact size", fontweight="bold")
+    fig.tight_layout()
+    out_path = out_dir / "binary_size.png"
+    fig.savefig(out_path)
+    plt.close(fig)
+    print(f"  Saved chart → {out_path}")
+
+
 def plot_throughput(summaries: dict[str, dict], out_dir: Path) -> None:
     rps_vals = [
         (_k6_metric(summaries[v], "http_reqs", "rate") or 0.0) if v in summaries else 0.0
@@ -347,12 +364,15 @@ def main() -> None:
 
     summaries     = _resolve_default_summaries(args.mode)
     sizes         = load_json_safe("image_sizes.json")      or {}
+    binary_sizes  = load_json_safe("binary_sizes.json")     or {}
     cold_data     = load_json_safe("cold_start.json")       or []
     warm_data     = load_json_safe("warm_start.json")       or []
     resource_data = load_json_safe("resource_metrics.json") or []
 
     if sizes:
         plot_image_sizes(sizes, out_dir)
+    if binary_sizes:
+        plot_binary_sizes(binary_sizes, out_dir)
     if summaries:
         plot_throughput(summaries, out_dir)
         plot_latency(summaries, out_dir)
