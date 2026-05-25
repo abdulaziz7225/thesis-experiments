@@ -96,16 +96,25 @@ def collect_docker_binary_size(image: str, binary_path: str) -> int | None:
     return its size in bytes. Returns None if the image is not locally
     available or `docker cp` fails.
     """
-    if subprocess.run(["docker", "image", "inspect", image],
-                      capture_output=True).returncode != 0:
+    inspect = subprocess.run(
+        ["docker", "image", "inspect", image],
+        capture_output=True, text=True,
+    )
+    if inspect.returncode != 0:
+        print(f"  WARN: docker image inspect failed for {image}: {inspect.stderr.strip()}",
+              file=sys.stderr)
         return None
 
-    tmp_container = f"_binsizes_{os.getpid()}_{abs(hash(image)) & 0xFFFF:x}"
+    # Container names must match [a-zA-Z0-9][a-zA-Z0-9_.-]* — they cannot start
+    # with an underscore, so the temp-name prefix is plain-letter.
+    tmp_container = f"binsize-{os.getpid()}-{abs(hash(image)) & 0xFFFF:x}"
     create = subprocess.run(
         ["docker", "create", "--name", tmp_container, image],
         capture_output=True, text=True,
     )
     if create.returncode != 0:
+        print(f"  WARN: docker create failed for {image}: {create.stderr.strip()}",
+              file=sys.stderr)
         return None
 
     try:
@@ -116,6 +125,8 @@ def collect_docker_binary_size(image: str, binary_path: str) -> int | None:
                 capture_output=True, text=True,
             )
             if cp.returncode != 0 or not dst.exists():
+                print(f"  WARN: docker cp {image}:{binary_path} failed: {cp.stderr.strip()}",
+                      file=sys.stderr)
                 return None
             return dst.stat().st_size
     finally:
