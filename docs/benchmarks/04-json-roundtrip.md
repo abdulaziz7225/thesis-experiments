@@ -66,13 +66,3 @@ Together with 01 (CPU-bound), 02 (memory-bound), and 03 (I/O-bound), this gives 
 | `docker-golang` | runc                | Go (net/http)    | 30084    |
 
 Unlike 01–03, the 04 load harness runs an **N-sweep** at the request-body level: one k6 invocation per `N ∈ {100, 1000, 10 000, 100 000}` per variant, producing four per-variant `<variant>_n<N>_summary.json` files plus a dedicated `n_sweep.png` line chart (throughput-vs-N, log-x). The middle of the sweep (`N = 10 000`) is aliased as the "default" k6 summary so the standard throughput / latency / error-rate panels render against a representative payload size. The same NodePorts are reused across all four examples — only one experiment namespace may be active at a time.
-
-## Concurrency constraints (limited mode)
-
-Identical to the prime sieve experiment:
-
-- `docker-rust`: `TOKIO_WORKER_THREADS=1`
-- `docker-golang`: `GOMAXPROCS=1`
-- Wasm variants: inherently single-threaded (one Spin component instance)
-
-The unlimited mode uses `TOKIO_WORKER_THREADS=4`, `GOMAXPROCS=4`, and `replicas=4` for the SpinApp variants — matching the four physical vCPUs of the Hetzner ccx23 host. The K8s `limits.cpu` is raised to `4000m` in the manifests so cgroup CPU bandwidth control does not throttle the added threads.

@@ -1,14 +1,5 @@
 # Build and push — Docker variants
 
-Eight images come out of this file: `docker-rust` and `docker-golang` for
-each of the four examples. Plus the small `io-echo` backend image (covered
-in [io-echo-backend.md](io-echo-backend.md)) used by 03.
-
-Prerequisites: [Docker daemon](../setup/01-prerequisites.md) and a Docker
-Hub login (`docker login`) for whichever registry you push to.
-
-Export your Docker Hub username once:
-
 ```bash
 export DOCKER_USER=<YOUR_DOCKERHUB_USERNAME>
 ```
@@ -83,11 +74,3 @@ Build flags:
   `-s` strips the symbol table, `-w` strips DWARF debug info,
   `-trimpath` removes embedded file paths (reproducible builds),
   `CGO_ENABLED=0` produces a static binary.
-
-## Next
-
-After all eight images are pushed (plus the `io-echo` backend for 03 —
-see [io-echo-backend.md](io-echo-backend.md)), continue with
-[wasm-variants.md](wasm-variants.md) for the SpinKube side, then
-[../operate/deploy.md](../operate/deploy.md) to bring an experiment up
-on the cluster.

@@ -82,18 +82,12 @@ The full per-experiment command set is in
 | Limited vs unlimited mode                                               | [docs/operate/scaling-modes.md](docs/operate/scaling-modes.md)                       |
 | Why only one example can be active at a time                            | [docs/operate/sequential-example-model.md](docs/operate/sequential-example-model.md) |
 | Output layout and chart regeneration                                    | [docs/operate/output-structure.md](docs/operate/output-structure.md)                 |
-| Grafana, Prometheus, useful PromQL                                      | [docs/operate/observability.md](docs/operate/observability.md)                       |
 | Removing experiments or destroying the VM                               | [docs/operate/teardown.md](docs/operate/teardown.md)                                 |
 | What each experiment measures (4 reference cards)                       | [docs/benchmarks/](docs/benchmarks/)                                                 |
 | What `container_memory_rss` measures, and why unlimited != 4× limited   | [docs/reference/notes-on-metrics.md](docs/reference/notes-on-metrics.md)             |
 | Why SpinKube was chosen over WasmEdge / wasmCloud / Krustlet            | [docs/reference/runtime-choice.md](docs/reference/runtime-choice.md)                 |
 | Repository tree and benchmark-script roster                             | [docs/reference/repository-layout.md](docs/reference/repository-layout.md)           |
 | Pinned toolchain versions                                               | [docs/reference/toolchain-versions.md](docs/reference/toolchain-versions.md)         |
-| Troubleshooting cluster collapse and image-pull failures                | [docs/reference/troubleshooting.md](docs/reference/troubleshooting.md)               |
 
 A complete docs landing page with one-line descriptions per file:
 [docs/README.md](docs/README.md).
-
-## License
-
-See [LICENSE](LICENSE).

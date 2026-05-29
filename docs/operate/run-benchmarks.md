@@ -7,18 +7,10 @@ collection, cold/warm-start measurement, image and binary size
 collection, and chart generation. **You only run one script per
 experiment.**
 
-Before any of these, complete [../setup/](../setup/) and
-[../build/](../build/), and export the two environment variables:
-
 ```bash
 export KUBECONFIG=../thesis-infra-setup/hetzner-thesis.yaml
 export THESIS_NODE_IP=$(cd ../thesis-infra-setup && terraform output -raw instance_public_ip)
-source .venv/bin/activate    # the Python venv from prerequisites
 ```
-
-For what each experiment _measures_, see
-[../benchmarks/](../benchmarks/). This file is about _how_ to invoke
-each one.
 
 ## 01-prime-sieve (CPU-bound)
 
@@ -119,9 +111,3 @@ Workload spec: [../benchmarks/04-json-roundtrip.md](../benchmarks/04-json-roundt
    saved as `binary_sizes.json` (see
    [../reference/notes-on-metrics.md](../reference/notes-on-metrics.md))
 9. **Chart generation** — calls `analyze.py --mode <mode>` to render PNGs
-
-For the output layout and how to regenerate charts without re-running,
-see [output-structure.md](output-structure.md).
-
-For the limited vs unlimited mode mechanics, see
-[scaling-modes.md](scaling-modes.md).

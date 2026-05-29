@@ -45,18 +45,3 @@ thesis-experiments/
     ├── 03-http-fanout/
     └── 04-json-roundtrip/
 ```
-
-## Benchmark scripts per example
-
-Every `benchmarks/<example>/` directory has the same five files:
-
-| File                    | Purpose                                                                           |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| `k6-load-test.js`       | k6 load-test script — configurable VUs and duration, emits a custom server metric |
-| `cold_start.py`         | Cold (run 1) and warm (runs 2+) start measurement by scaling deployments 0 → 1    |
-| `prometheus_metrics.py` | Queries Prometheus for memory and CPU per variant over a load-test window         |
-| `analyze.py`            | Reads result files and generates chart PNGs (`--mode limited\|unlimited`)         |
-| `run_experiment.sh`     | Orchestrator — health checks, load tests, cold start, sizes, charts               |
-
-For what these scripts do end-to-end, see
-[../operate/run-benchmarks.md](../operate/run-benchmarks.md).

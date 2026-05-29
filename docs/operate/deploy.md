@@ -89,9 +89,3 @@ curl -s -X POST -H 'Content-Type: application/json' \
   -d '[5,1,4,2,3]' \
   "http://${IP}:30081/jsontx?no_list=0" | python3 -m json.tool
 ```
-
-## Next
-
-To drive the actual benchmark experiments, continue with
-[run-benchmarks.md](run-benchmarks.md). For per-experiment workload
-specs see [../benchmarks/](../benchmarks/).

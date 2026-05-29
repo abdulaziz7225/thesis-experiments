@@ -47,13 +47,3 @@ CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o <name> .
 PATH="$HOME/sdk/go1.23.12/bin:$PATH" \
   tinygo build -target=wasip1 -gc=conservative -opt=2 -no-debug -o app.wasm .
 ```
-
-## Hardware
-
-Single Hetzner Cloud `ccx23` VM (4 vCPU dedicated, 16 GB RAM). All
-experiments run on this single node — control plane and workloads
-share the same cores. See
-[runtime-choice.md](runtime-choice.md) for why this configuration was
-picked, and [troubleshooting.md](troubleshooting.md) for the failure
-modes that single-node arrangement is most prone to (cluster collapse
-under sustained load).

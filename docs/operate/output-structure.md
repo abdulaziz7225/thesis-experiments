@@ -21,9 +21,6 @@ results/<example>/
 └── binary_sizes.json                 # {variant: MB} — raw .wasm / scratch binary
 ```
 
-`image_sizes.json` and `binary_sizes.json` measure different things —
-see [../reference/notes-on-metrics.md § 4](../reference/notes-on-metrics.md).
-
 ## Chart panels per experiment
 
 Each `analyze.py` renders one PNG per panel into
@@ -61,6 +58,3 @@ python3 benchmarks/03-http-fanout/analyze.py      --mode unlimited
 python3 benchmarks/04-json-roundtrip/analyze.py   --mode limited
 python3 benchmarks/04-json-roundtrip/analyze.py   --mode unlimited
 ```
-
-This is useful when you tweak the chart styling code or want to add a
-new panel — no need to wait through a full cluster rerun.

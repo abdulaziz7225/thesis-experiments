@@ -35,10 +35,6 @@ the short summary:
    etcd + Prometheus.
 6. For 03 (I/O-bound), `io-echo` is the bottleneck, not the variant.
 
-Empirically the unlimited/limited speedup lands at ~1.3×–2× for these
-workloads. The point of unlimited mode is to **measure how each
-variant's parallelism story scales**, not to advertise a 4× number.
-
 ## Results layout per mode
 
 Each mode's k6 output goes to a separate subdirectory under
@@ -53,8 +49,3 @@ results/<example>/
 └── unlimited/                    # only if --scaling-experiment unlimited|both
     └── charts/
 ```
-
-The startup, resource, and size JSON files (`cold_start.json`,
-`warm_start.json`, `resource_metrics.json`, `image_sizes.json`,
-`binary_sizes.json`) live one level up, shared across both modes — see
-[output-structure.md](output-structure.md).

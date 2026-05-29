@@ -60,13 +60,3 @@ Together with the prime sieve (CPU-bound, 01) and memory-bandwidth (memory-bound
 | `docker-golang` | runc                | Go (net/http)    | 30084    |
 
 A small Go `io-echo` backend Deployment lives in the same namespace as the four variants and is the outbound HTTP target. It is intentionally **not** part of the comparison matrix — holding the per-outbound delay and response size stable at the backend turns variation in measured throughput and latency into a runtime-and-language signal rather than backend noise. The two Spin variants set `allowed_outbound_hosts = ["http://io-echo.http-fanout.svc.cluster.local:80"]` in `spin.toml`, gating outbound HTTP to the backend only (deny-by-default posture). The same NodePorts are reused across all four examples — only one experiment namespace may be active at a time.
-
-## Concurrency constraints (limited mode)
-
-Identical to the prime sieve experiment:
-
-- `docker-rust`: `TOKIO_WORKER_THREADS=1`
-- `docker-golang`: `GOMAXPROCS=1`
-- Wasm variants: inherently single-threaded (one Spin component instance)
-
-The unlimited mode uses `TOKIO_WORKER_THREADS=4`, `GOMAXPROCS=4`, and `replicas=4` for the SpinApp variants — matching the four physical vCPUs of the Hetzner ccx23 host. The K8s `limits.cpu` is raised to `4000m` in the manifests so cgroup CPU bandwidth control does not throttle the added threads.

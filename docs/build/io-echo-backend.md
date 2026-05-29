@@ -8,8 +8,7 @@ inbound-side throughput / latency is attributable to runtime + language
 overhead rather than backend noise.
 
 `io-echo` is **not** part of the four-variant comparison matrix. It is
-the I/O target. Source lives at `backend/io-echo/` (`main.go`, `go.mod`,
-`Dockerfile`).
+the I/O target. Source lives at `backend/io-echo/`.
 
 Build and push it **once**; it is reused by all four 03 variants.
 
@@ -45,12 +44,4 @@ deny-by-default posture that matches Spin's idiomatic capability model.
 The harness defaults (`./benchmarks/03-http-fanout/run_experiment.sh
 --n 5 --delay-ms 50`) issue 5 concurrent outbound GETs at 50 ms each —
 the per-request floor is therefore ~50 ms (concurrent) or ~250 ms
-(sequential, the TinyGo variant — see
-[../benchmarks/03-http-fanout.md](../benchmarks/03-http-fanout.md)).
-
-## Next
-
-After `io-echo` is pushed and the four 03 variant images are pushed
-(per [docker-variants.md](docker-variants.md) and
-[wasm-variants.md](wasm-variants.md)), continue with
-[../operate/deploy.md](../operate/deploy.md).
+(sequential, the TinyGo variant).

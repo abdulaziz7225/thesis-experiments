@@ -29,26 +29,3 @@ This calls `terraform destroy`, which removes the Hetzner Cloud VM and
 its network. You'll need to re-run the full
 [../setup/02-infrastructure.md](../setup/02-infrastructure.md) flow to
 get a cluster back.
-
-## Local cleanup
-
-The benchmark output under `results/` is git-ignored (the orchestrators
-write fresh files on every run). If you want to start with a clean slate:
-
-```bash
-rm -rf results/0*-*/{limited,unlimited}/{charts,*_summary.json,*_k6.json}
-rm -f  results/0*-*/{cold,warm}_start.json
-rm -f  results/0*-*/resource_metrics.json
-rm -f  results/0*-*/image_sizes.json
-rm -f  results/0*-*/binary_sizes.json
-```
-
-The Python venv at `.venv/` can also be removed safely:
-
-```bash
-deactivate 2>/dev/null || true
-rm -rf .venv/
-```
-
-`docker image prune` and `docker rmi <ref>` clean up local image copies
-if you need disk space back.

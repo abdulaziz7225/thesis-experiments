@@ -1,19 +1,5 @@
 # Build and push — Wasm variants
 
-Eight `.wasm` artefacts come out of this file: `wasm-rust` and
-`wasm-tinygo` for each of the four examples. Each is wrapped in a
-**Spin OCI artifact** (not a Docker image) and pushed via
-`spin registry push` — see the box at the end for why this matters.
-
-Prerequisites:
-
-- Spin CLI v3+
-- `cargo-component` (for the Rust variants)
-- TinyGo 0.40.1 **plus** Go 1.23.12 installed via `golang.org/dl/`
-  (for the TinyGo variants — see the next section)
-
-All four are covered in [../setup/01-prerequisites.md](../setup/01-prerequisites.md).
-
 ```bash
 export DOCKER_USER=<YOUR_DOCKERHUB_USERNAME>
 ```
@@ -24,9 +10,7 @@ export DOCKER_USER=<YOUR_DOCKERHUB_USERNAME>
 > `crypto/sha256` panics inside the TinyGo wasip1 runtime. **Go 1.23.12
 > is the only known-good version.** The TinyGo build commands below
 > prepend `~/sdk/go1.23.12/bin` to `PATH` so TinyGo invokes the right Go
-> toolchain (installed in
-> [../setup/01-prerequisites.md](../setup/01-prerequisites.md) — does
-> **not** affect your system Go). Wasm + Rust commands are unaffected.
+> toolchain. Wasm + Rust commands are unaffected.
 
 ## All four Wasm + Rust variants
 
@@ -105,12 +89,3 @@ types `application/vnd.fermyon.spin.manifest.v2+json` and friends. The
 and execute these artefacts; the plain Docker engine and standard OCI
 tooling do not. If you `docker push` a `.wasm` instead, the SpinOperator
 will reject the resulting image at admission time.
-
-## Next
-
-After all eight `.wasm` artefacts are pushed, continue with
-[../operate/deploy.md](../operate/deploy.md) to bring an experiment up
-on the cluster.
-
-For 03 (HTTP fan-out, I/O-bound) you also need the small `io-echo`
-backend image: see [io-echo-backend.md](io-echo-backend.md).
